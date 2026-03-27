@@ -38,6 +38,7 @@ export default function RecordScreen() {
   const [videoMime, setVideoMime] = useState<string>('video/mp4');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
   const cameraRef = useRef<any>(null);
 
   const requestCameraPermission = useCallback(async () => {
@@ -88,16 +89,20 @@ export default function RecordScreen() {
     if (!videoUri) return;
     setUploading(true);
     setUploadProgress(0);
+    setUploadPhase('uploading');
     try {
       const result = await submitAnalysis(videoUri, videoMime, (progress) => {
-        setUploadProgress(progress);
+        // Cap at 95% during upload — the last 5% is server-side handoff
+        setUploadProgress(Math.min(progress, 0.95));
       });
+      // Upload complete — switch to processing phase
+      setUploadProgress(1);
+      setUploadPhase('processing');
       navigation.replace('AnalysisResult', { analysisId: result.id, poll: true });
     } catch (err: any) {
-      Alert.alert(
-        'Upload Failed',
-        err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.'
-      );
+      setUploadPhase('idle');
+      const message = err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.';
+      Alert.alert('Upload Failed', message, [{ text: 'Try Again' }]);
     } finally {
       setUploading(false);
     }
@@ -114,7 +119,11 @@ export default function RecordScreen() {
       <SafeAreaView style={styles.safe}>
         <LoadingOverlay
           visible={uploading}
-          message={`Uploading…\n${Math.round(uploadProgress * 100)}%\n\nThis may take a moment.`}
+          message={
+            uploadPhase === 'processing'
+              ? 'Processing your swing…\n\nOur AI is analyzing your video.\nThis takes 20–40 seconds.'
+              : `Uploading video… ${Math.round(uploadProgress * 100)}%\n\nPlease keep the app open.`
+          }
         />
         <View style={styles.previewHeader}>
           <TouchableOpacity onPress={resetVideo} style={styles.backButton}>
