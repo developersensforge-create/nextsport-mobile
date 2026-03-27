@@ -2,6 +2,18 @@
 
 AI Baseball Swing Analyzer — React Native (Expo) app.
 
+## First-time setup (create GitHub repo + push):
+
+```bash
+# 1. Create the repo on GitHub (one-time — your PAT needs repo creation scope)
+#    → Go to https://github.com/new → name: nextsport-mobile → Create
+
+# 2. Push code (already committed locally)
+cd nextsport-mobile
+git remote set-url origin https://github.com/ruizhi1201/nextsport-mobile.git
+git push -u origin main
+```
+
 ## To build the APK (pilot):
 
 1. `npm install`
