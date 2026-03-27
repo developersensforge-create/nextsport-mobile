@@ -51,7 +51,7 @@ export function useAuth() {
 
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
     // Use our backend API to create user with auto email confirmation (no verification email needed)
-    const response = await fetch('https://nextsport.vercel.app/api/auth/signup', {
+    const response = await fetch('https://nextsport-ruizhi1201s-projects.vercel.app/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),

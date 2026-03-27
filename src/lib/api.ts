@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase';
 
-const BASE_URL = 'https://nextsport.vercel.app';
+const BASE_URL = 'https://nextsport-ruizhi1201s-projects.vercel.app';
 
 async function getAuthHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
