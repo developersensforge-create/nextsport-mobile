@@ -50,25 +50,18 @@ export function useAuth() {
   );
 
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        // For pilot: skip email confirmation by using emailRedirectTo that auto-confirms
-        emailRedirectTo: undefined,
-      },
+    // Use our backend API to create user with auto email confirmation (no verification email needed)
+    const response = await fetch('https://nextsport.vercel.app/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
-    if (error) throw error;
-    // If email confirmation is required, session will be null but user exists
-    // We attempt to sign in immediately for pilot convenience
-    if (!data.session && data.user) {
-      // Try signing in immediately — works if Supabase has email confirmation disabled
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        // Email confirmation still required — throw helpful message
-        throw new Error('Account created! Check your email to confirm before logging in.');
-      }
-    }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Sign up failed');
+
+    // Now sign in with the confirmed account
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) throw signInError;
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
