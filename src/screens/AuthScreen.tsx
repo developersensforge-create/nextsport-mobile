@@ -39,27 +39,15 @@ export default function AuthScreen() {
       Alert.alert('Weak password', 'Password must be at least 6 characters.');
       return;
     }
-
     setLoading(true);
     try {
       if (mode === 'login') {
         await signInWithEmail(email.trim(), password);
       } else {
         await signUpWithEmail(email.trim(), password);
-        Alert.alert(
-          'Check your email',
-          'We sent you a confirmation link. Please verify your email before logging in.'
-        );
-        setMode('login');
       }
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'Authentication failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-catch (err: any) {
-      Alert.alert('Google Sign-In Failed', err.message ?? 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -103,7 +91,6 @@ catch (err: any) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                editable={!loading}
               />
             </View>
 
@@ -112,17 +99,17 @@ catch (err: any) {
               <Text style={styles.label}>Password</Text>
               <View style={styles.passwordRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  style={[styles.input, { flex: 1 }]}
                   value={password}
                   onChangeText={setPassword}
                   placeholder="••••••••"
                   placeholderTextColor={COLORS.muted}
                   secureTextEntry={!showPassword}
-                  editable={!loading}
+                  autoCapitalize="none"
                 />
                 <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword((v) => !v)}
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeBtn}
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off' : 'eye'}
@@ -133,7 +120,7 @@ catch (err: any) {
               </View>
             </View>
 
-            {/* Confirm password (signup only) */}
+            {/* Confirm Password (signup only) */}
             {mode === 'signup' && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Confirm Password</Text>
@@ -144,39 +131,32 @@ catch (err: any) {
                   placeholder="••••••••"
                   placeholderTextColor={COLORS.muted}
                   secureTextEntry={!showPassword}
-                  editable={!loading}
+                  autoCapitalize="none"
                 />
               </View>
             )}
 
             {/* Submit */}
             <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+              style={[styles.submitButton, loading && styles.buttonDisabled]}
               onPress={handleSubmit}
               disabled={loading}
-              activeOpacity={0.8}
             >
-              <Text style={styles.primaryButtonText}>
-                {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Sign Up'}
+              <Text style={styles.submitText}>
+                {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
               </Text>
             </TouchableOpacity>
 
-            {/* Divider */}
-            
-          </View>
-
-          {/* Toggle mode */}
-          <TouchableOpacity
-            style={styles.toggleRow}
-            onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}
-          >
-            <Text style={styles.toggleText}>
-              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-              <Text style={styles.toggleLink}>
-                {mode === 'login' ? 'Sign Up' : 'Sign In'}
+            {/* Toggle mode */}
+            <TouchableOpacity onPress={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+              <Text style={styles.toggleText}>
+                {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                <Text style={styles.toggleLink}>
+                  {mode === 'login' ? 'Sign Up' : 'Sign In'}
+                </Text>
               </Text>
-            </Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -197,125 +177,90 @@ const styles = StyleSheet.create({
   },
   brand: {
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 32,
   },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(34,197,94,0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(34,197,94,0.4)',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#0d1f2d',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
   },
   appName: {
+    fontSize: 28,
+    fontWeight: '700',
     color: COLORS.text,
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   tagline: {
-    color: COLORS.muted,
     fontSize: 14,
+    color: COLORS.muted,
     marginTop: 4,
   },
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    gap: 16,
   },
   title: {
-    color: COLORS.text,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
-    marginBottom: 24,
+    color: COLORS.text,
+    marginBottom: 4,
   },
   inputGroup: {
-    marginBottom: 16,
+    gap: 6,
   },
   label: {
-    color: COLORS.muted,
     fontSize: 13,
+    color: COLORS.muted,
     fontWeight: '500',
-    marginBottom: 6,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#1a2332',
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    color: COLORS.text,
+    padding: 14,
     fontSize: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: '#2a3a4a',
   },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  eyeButton: {
-    marginLeft: 8,
-    padding: 12,
+  eyeBtn: {
+    position: 'absolute',
+    right: 14,
+    padding: 4,
   },
-  primaryButton: {
+  submitButton: {
     backgroundColor: COLORS.accent,
     borderRadius: 12,
-    paddingVertical: 15,
+    padding: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
-  primaryButtonText: {
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  submitText: {
     color: '#000',
     fontSize: 16,
     fontWeight: '700',
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  dividerText: {
-    color: COLORS.muted,
-    fontSize: 13,
-    marginHorizontal: 12,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  googleButtonText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  toggleRow: {
-    alignItems: 'center',
-    marginTop: 24,
-  },
   toggleText: {
+    textAlign: 'center',
     color: COLORS.muted,
     fontSize: 14,
   },
   toggleLink: {
     color: COLORS.accent,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });
