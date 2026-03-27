@@ -98,7 +98,7 @@ export default function RecordScreen() {
       // Upload complete — switch to processing phase
       setUploadProgress(1);
       setUploadPhase('processing');
-      navigation.replace('AnalysisResult', { analysisId: result.id, poll: true });
+      navigation.replace('AnalysisResult', { analysisId: result.analysisId ?? result.id, poll: true });
     } catch (err: any) {
       setUploadPhase('idle');
       const message = err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.';

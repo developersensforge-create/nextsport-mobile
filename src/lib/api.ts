@@ -63,7 +63,7 @@ export async function submitAnalysis(
   videoMimeType: string = 'video/mp4',
   onProgress?: (progress: number) => void,
   durationSeconds?: number
-): Promise<{ id: string }> {
+): Promise<{ id: string; analysisId?: string }> {
   const headers = await getAuthHeaders();
 
   const formData = new FormData();
