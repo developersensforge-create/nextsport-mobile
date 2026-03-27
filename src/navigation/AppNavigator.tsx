@@ -13,11 +13,13 @@ import HomeScreen from '../screens/HomeScreen';
 import RecordScreen from '../screens/RecordScreen';
 import AnalysisResultScreen from '../screens/AnalysisResultScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import DrillsScreen from '../screens/DrillsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import { COLORS } from '../theme';
 
 export type MainTabParamList = {
   Home: undefined;
+  Drills: undefined;
   Profile: undefined;
 };
 
@@ -61,6 +63,8 @@ function MainTabs() {
           let iconName: any;
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Drills') {
+            iconName = focused ? 'barbell' : 'barbell-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -69,6 +73,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Drills" component={DrillsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
