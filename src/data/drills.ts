@@ -55,6 +55,12 @@ export const DRILLS: Drill[] = [
       'Rest 15 seconds. Repeat 3 times.',
     ],
     coachTip: 'Imagine you\'re about to catch a basketball — that alert, coiled feeling is exactly the stance you want.',
+    referenceVideo: {
+      url: 'https://youtu.be/dT8JMbCnVwM',
+      title: 'How To Have A Perfect Batting Stance',
+      creator: 'AntonelliBaseball',
+      note: 'Watch 0:00 – 2:00 — covers feet width, knee bend, and bat angle',
+    },
   },
   {
     id: 'stance-02',
@@ -75,6 +81,12 @@ export const DRILLS: Drill[] = [
       'Focus on landing in the same spot every time.',
     ],
     coachTip: 'The stride should be quiet and controlled — no lunging. Think "step to hit," not "step then hit."',
+    referenceVideo: {
+      url: 'https://youtu.be/dT8JMbCnVwM',
+      title: 'How To Have A Perfect Batting Stance',
+      creator: 'AntonelliBaseball',
+      note: 'Watch 2:00 – 3:30 — stride and weight transfer section',
+    },
   },
 
   // ── BATTING — Hip Rotation ─────────────────────────────────────────
@@ -97,6 +109,12 @@ export const DRILLS: Drill[] = [
       'Reset and repeat at a controlled pace.',
     ],
     coachTip: 'Your hips should fire BEFORE your shoulders rotate. Think "hips open, then hands follow."',
+    referenceVideo: {
+      url: 'https://youtu.be/VAk5WHHd26s?si=Xi9jpGtI6Vayo3z7&t=46',
+      title: 'Resistance Band Exercises | Hitting Done Right',
+      creator: 'Hitting Done Right - HDR',
+      note: 'Watch 0:46 – 2:00 — hip rotation mechanics and isolation',
+    },
   },
   {
     id: 'hip-02',
@@ -117,6 +135,12 @@ export const DRILLS: Drill[] = [
       'Check: back foot should be on its toe at finish, belt buckle facing pitcher.',
     ],
     coachTip: 'Place your hand on your back hip before swinging. Feel it push forward first — that\'s the sequence you\'re training.',
+    referenceVideo: {
+      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      title: 'Tee Drill for Hip Drive and Power',
+      creator: 'TheBullpenTraining',
+      note: 'Full video — focuses on hip-first swing sequence',
+    },
   },
   {
     id: 'hip-03',
@@ -217,6 +241,12 @@ export const DRILLS: Drill[] = [
       'Put it together: notice if one hand is dominating incorrectly.',
     ],
     coachTip: 'Most hitters are too top-hand dominant. The bottom hand is the guide — the top hand is the finisher.',
+    referenceVideo: {
+      url: 'https://youtu.be/CPzMopFu95M?si=Sys4zD8W4xaxvHs9&t=20',
+      title: 'Top 5 PVC Hitting Drills - At Home Baseball Drills',
+      creator: 'Northern Baseball Training',
+      note: 'Watch 0:20 – 1:41 — one-hand bat path isolation techniques',
+    },
   },
 
   // ── BATTING — Batting Power ───────────────────────────────────────
@@ -267,6 +297,12 @@ export const DRILLS: Drill[] = [
       'The key: don\'t try to pull outside pitches. Let them get deep.',
     ],
     coachTip: 'Inside → out front. Middle → even with hip. Outside → slightly behind hip. This is the contact point triangle.',
+    referenceVideo: {
+      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      title: 'Tee Zone Work — Contact Point Basics',
+      creator: 'TheBullpenTraining',
+      note: 'Full video — demonstrates tee placement for different pitch zones',
+    },
   },
 
   // ── BATTING — Follow Through ──────────────────────────────────────
@@ -289,6 +325,12 @@ export const DRILLS: Drill[] = [
       'Repeat. Speed up gradually while keeping the finish clean.',
     ],
     coachTip: 'A good finish is proof of a good swing. If your finish is off-balance or your arms are bent awkwardly, work backward to find the breakdown.',
+    referenceVideo: {
+      url: 'https://youtu.be/r9fs-HGCZTs?si=nRNK09svz3WK0Cjx&t=149',
+      title: 'Medicine Ball Drills to Increase Bat Speed and Power',
+      creator: 'AntonelliBaseball',
+      note: 'Watch 2:29 – 3:10 — extension and finish position focus',
+    },
   },
 
   // ── FIELDING — Infield Fundamentals ──────────────────────────────
