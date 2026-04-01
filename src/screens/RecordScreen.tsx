@@ -59,7 +59,18 @@ export default function RecordScreen() {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       setVideoUri(video.uri);
     } catch (err: any) {
-      Alert.alert('Recording Error', err.message ?? 'Failed to record video.');
+      // Camera recording isn't supported or failed on this device — fallback to upload mode
+      Alert.alert(
+        'Recording Failed',
+        "Camera recording isn't supported on this device. Please upload a video from your gallery.",
+        [
+          {
+            text: 'Upload Video',
+            onPress: () => setMode('upload'),
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
     } finally {
       setIsRecording(false);
     }
@@ -95,15 +106,50 @@ export default function RecordScreen() {
         // Cap at 95% during upload — the last 5% is server-side handoff
         setUploadProgress(Math.min(progress, 0.95));
       });
+
+      // Guard: if result.id is missing the server-side handoff failed
+      const analysisId = result?.analysisId ?? result?.id;
+      if (!analysisId) {
+        setUploadPhase('idle');
+        setUploading(false);
+        Alert.alert('Analysis Failed', 'Analysis failed — please try again.', [{ text: 'OK' }]);
+        return;
+      }
+
       // Upload complete — switch to processing phase
       setUploadProgress(1);
       setUploadPhase('processing');
-      navigation.replace('AnalysisResult', { analysisId: result.analysisId ?? result.id, poll: true });
+      navigation.replace('AnalysisResult', { analysisId, poll: true });
     } catch (err: any) {
       setUploadPhase('idle');
-      const message = err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.';
+      setUploading(false);
+
+      // Network timeout (axios timeout = 120s)
+      if (err?.code === 'ECONNABORTED' || err?.message?.toLowerCase().includes('timeout')) {
+        Alert.alert(
+          'Request Timed Out',
+          'The server took too long to respond. Please check your connection and try again.',
+          [{ text: 'Try Again' }]
+        );
+        return;
+      }
+
+      // Server-side error response
+      if (err?.response) {
+        const serverMsg = err.response?.data?.error ?? err.response?.data?.message;
+        Alert.alert(
+          'Analysis Failed',
+          serverMsg ?? 'Analysis failed — please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Generic fallback
+      const message = err?.message ?? 'Failed to submit video. Please try again.';
       Alert.alert('Upload Failed', message, [{ text: 'Try Again' }]);
     } finally {
+      // Always dismiss loading overlay
       setUploading(false);
     }
   }
