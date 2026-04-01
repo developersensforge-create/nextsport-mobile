@@ -66,31 +66,42 @@ export async function submitAnalysis(
 ): Promise<{ id: string; analysisId?: string }> {
   const headers = await getAuthHeaders();
 
-  const formData = new FormData();
-  formData.append('video', {
-    uri: videoUri,
-    type: videoMimeType,
-    name: 'swing.mp4',
-  } as any);
+  // Step 1: Get a signed upload URL from our server
+  onProgress?.(0.05);
+  const fileName = `swing-${Date.now()}.mp4`;
+  const uploadUrlResp = await axios.post(
+    `${BASE_URL}/api/analyze/upload-url`,
+    { fileName, contentType: videoMimeType },
+    { headers }
+  );
+  const { uploadUrl, filePath } = uploadUrlResp.data;
 
-  // Always send duration so server can calculate token cost correctly
-  formData.append('duration', String(durationSeconds ?? 15));
+  // Step 2: Upload directly to Supabase Storage
+  // Read file as blob
+  const response = await fetch(videoUri);
+  const blob = await response.blob();
 
-  const response = await axios.post(`${BASE_URL}/api/analyze`, formData, {
-    headers: {
-      ...headers,
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: 120000, // 2 min timeout for AI processing
+  // Upload with progress
+  await axios.put(uploadUrl, blob, {
+    headers: { 'Content-Type': videoMimeType },
     onUploadProgress: (progressEvent) => {
       if (onProgress && progressEvent.total) {
-        const progress = progressEvent.loaded / progressEvent.total;
+        const progress = 0.1 + (progressEvent.loaded / progressEvent.total) * 0.85;
         onProgress(Math.min(progress, 0.95));
       }
     },
   });
 
-  return response.data;
+  onProgress?.(0.97);
+
+  // Step 3: Tell server to analyze the uploaded file
+  const analyzeResp = await axios.post(
+    `${BASE_URL}/api/analyze`,
+    { videoPath: filePath, duration: durationSeconds ?? 15 },
+    { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 120000 }
+  );
+
+  return analyzeResp.data;
 }
 
 export async function pollAnalysis(id: string, maxAttempts = 30): Promise<Analysis> {
