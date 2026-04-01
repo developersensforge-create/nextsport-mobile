@@ -14,6 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { submitAnalysis } from '../lib/api';
 import LoadingOverlay from '../components/LoadingOverlay';
@@ -100,6 +101,22 @@ export default function RecordScreen() {
 
   async function handleAnalyze() {
     if (!videoUri) return;
+
+    // Check file size before uploading (50MB limit for Vercel)
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(videoUri, { size: true });
+      if (fileInfo.exists && fileInfo.size && fileInfo.size > 50 * 1024 * 1024) {
+        Alert.alert(
+          'Video Too Large',
+          'Please use a video under 50MB. Try recording a shorter clip (under 30 seconds).',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    } catch {
+      // If we can't check size, proceed anyway
+    }
+
     setUploading(true);
     setUploadProgress(0);
     setUploadPhase('uploading');
@@ -126,6 +143,14 @@ export default function RecordScreen() {
       setUploadPhase('idle');
       setUploading(false);
 
+      // Log full error details for debugging
+      console.log('Upload error details:', JSON.stringify({
+        code: err?.code,
+        message: err?.message,
+        response: err?.response?.data,
+        status: err?.response?.status,
+      }));
+
       // Network timeout (axios timeout = 120s)
       if (err?.code === 'ECONNABORTED' || err?.message?.toLowerCase().includes('timeout')) {
         Alert.alert(
@@ -140,16 +165,19 @@ export default function RecordScreen() {
       if (err?.response) {
         const serverMsg = err.response?.data?.error ?? err.response?.data?.message;
         Alert.alert(
-          'Analysis Failed',
-          serverMsg ?? 'Analysis failed — please try again.',
+          'Upload Failed',
+          serverMsg ?? err?.message ?? 'Failed to upload video. Please try a shorter clip.',
           [{ text: 'OK' }]
         );
         return;
       }
 
-      // Generic fallback
-      const message = err?.message ?? 'Failed to submit video. Please try again.';
-      Alert.alert('Upload Failed', message, [{ text: 'Try Again' }]);
+      // Generic fallback — show actual error message
+      Alert.alert(
+        'Upload Failed',
+        err?.response?.data?.error || err?.message || 'Failed to upload video. Please try a shorter clip.',
+        [{ text: 'OK' }]
+      );
     } finally {
       // Always dismiss loading overlay
       setUploading(false);
