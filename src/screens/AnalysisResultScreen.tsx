@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { Audio } from 'expo-av';
+import { Audio, Video, ResizeMode } from 'expo-av';
 import * as Sharing from 'expo-sharing';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -222,6 +222,22 @@ export default function AnalysisResultScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Annotated video */}
+        {analysis.result_video_url && (
+          <View style={styles.videoSection}>
+            <Text style={styles.videoLabel}>📹 Your Annotated Swing</Text>
+            <Text style={styles.videoSubLabel}>Slow motion with coaching cues</Text>
+            <Video
+              source={{ uri: analysis.result_video_url }}
+              style={styles.swingVideo}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={false}
+              isLooping={false}
+            />
+          </View>
+        )}
+
         {/* Score */}
         {analysis.score !== null && <ScoreGauge score={analysis.score} />}
 
@@ -479,5 +495,28 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     fontSize: 15,
     fontWeight: '600',
+  },
+  videoSection: {
+    marginBottom: 24,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 16,
+  },
+  videoLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  videoSubLabel: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 12,
+  },
+  swingVideo: {
+    width: '100%',
+    height: 220,
+    borderRadius: 8,
+    backgroundColor: '#000',
   },
 });
