@@ -56,8 +56,8 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Imagine you\'re about to catch a basketball — that alert, coiled feeling is exactly the stance you want.',
     referenceVideo: {
-      url: 'https://youtu.be/dT8JMbCnVwM',
-      title: 'How To Have A Perfect Batting Stance',
+      url: 'https://www.youtube.com/watch?v=OnwcYS4fa7Y',
+      title: 'How to Improve Your Batting Stance & Setup',
       creator: 'AntonelliBaseball',
       note: 'Watch 0:00 – 2:00 — covers feet width, knee bend, and bat angle',
     },
@@ -82,8 +82,8 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The stride should be quiet and controlled — no lunging. Think "step to hit," not "step then hit."',
     referenceVideo: {
-      url: 'https://youtu.be/dT8JMbCnVwM',
-      title: 'How To Have A Perfect Batting Stance',
+      url: 'https://www.youtube.com/watch?v=OnwcYS4fa7Y',
+      title: 'How to Improve Your Batting Stance & Setup',
       creator: 'AntonelliBaseball',
       note: 'Watch 2:00 – 3:30 — stride and weight transfer section',
     },
