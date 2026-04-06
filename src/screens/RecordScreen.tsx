@@ -187,13 +187,13 @@ export default function RecordScreen() {
       setUploadPhase('processing');
       const shouldPoll = result?.status !== 'completed';
 
-      if (!shouldPoll && result?.data) {
+      if (!shouldPoll) {
         // Pass prefetched analysis data directly — skips redundant getAnalysis call
-        logger.info(TAG, 'handleAnalyze: status=completed with data — passing prefetchedData via params');
+        logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params');
         navigation.replace('AnalysisResult', {
           analysisId,
           poll: false,
-          prefetchedData: result.data,
+          prefetchedData: result,
         });
       } else {
         navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
