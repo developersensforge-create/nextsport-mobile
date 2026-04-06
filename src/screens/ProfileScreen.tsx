@@ -505,11 +505,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   debugCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: 'rgba(22,160,133,0.08)',
     borderRadius: 14,
     padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
     marginBottom: 16,
   },
   debugHeader: {
