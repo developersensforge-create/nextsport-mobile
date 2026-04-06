@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Profile, getProfile } from '../lib/api';
 import { useAuth } from './useAuth';
 
@@ -15,12 +15,17 @@ export function useProfile() {
     loading: true,
     error: null,
   });
+  // Guard against duplicate simultaneous fetches (re-render storms)
+  const fetchInFlight = useRef(false);
 
   const fetchProfile = useCallback(async () => {
     if (!session) {
       setState({ profile: null, loading: false, error: null });
       return;
     }
+    // Skip if a fetch is already in progress
+    if (fetchInFlight.current) return;
+    fetchInFlight.current = true;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const profile = await getProfile();
@@ -31,6 +36,8 @@ export function useProfile() {
         loading: false,
         error: err?.message ?? 'Failed to load profile',
       });
+    } finally {
+      fetchInFlight.current = false;
     }
   }, [session]);
 

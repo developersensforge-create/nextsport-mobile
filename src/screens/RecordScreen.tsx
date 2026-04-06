@@ -182,10 +182,11 @@ export default function RecordScreen() {
       }
 
       // Upload complete — switch to processing phase
-      logger.info(TAG, `handleAnalyze: navigating to AnalysisResult, analysisId=${analysisId}`);
+      logger.info(TAG, `handleAnalyze: navigating to AnalysisResult, analysisId=${analysisId}, status=${result?.status}`);
       setUploadProgress(1);
       setUploadPhase('processing');
-      navigation.replace('AnalysisResult', { analysisId, poll: true });
+      const shouldPoll = result?.status !== 'completed';
+      navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
     } catch (err: any) {
       setUploadPhase('idle');
       setUploading(false);
