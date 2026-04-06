@@ -25,7 +25,7 @@ type ResultRouteProp = RouteProp<RootStackParamList, 'AnalysisResult'>;
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
   const route = useRoute<ResultRouteProp>();
-  const { analysisId, poll } = route.params;
+  const { analysisId, poll, prefetchedData } = route.params;
 
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,8 +37,16 @@ export default function AnalysisResultScreen() {
     async function load() {
       setLoading(true);
       setError(null);
-      logger.info(TAG, `load: starting — analysisId=${analysisId} poll=${poll}`);
+      logger.info(TAG, `load: starting — analysisId=${analysisId} poll=${poll} hasPrefetch=${!!prefetchedData}`);
       try {
+        // If prefetched data was passed via navigation params, use it directly
+        // to avoid a redundant API call (which can cause crashes under memory pressure)
+        if (prefetchedData) {
+          logger.info(TAG, 'load: using prefetchedData — skipping getAnalysis call');
+          setAnalysis(prefetchedData);
+          setLoading(false);
+          return;
+        }
         if (poll) {
           logger.info(TAG, 'load: entering pollAnalysis loop');
           const result = await pollAnalysis(analysisId);
@@ -63,7 +71,7 @@ export default function AnalysisResultScreen() {
       }
     }
     load();
-  }, [analysisId, poll]);
+  }, [analysisId, poll, prefetchedData]);
 
   async function handleShare() {
     if (!analysis) return;

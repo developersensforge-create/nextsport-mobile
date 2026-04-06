@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,8 +34,12 @@ export default function HomeScreen() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [analysesLoading, setAnalysesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Guard against duplicate simultaneous fetches triggered by useFocusEffect re-fires
+  const analysesFetchInFlight = useRef(false);
 
   async function loadAnalyses() {
+    if (analysesFetchInFlight.current) return;
+    analysesFetchInFlight.current = true;
     try {
       const data = await getAnalyses();
       setAnalyses(data.slice(0, 5));
@@ -43,6 +47,7 @@ export default function HomeScreen() {
       // silently fail on load — show empty state
     } finally {
       setAnalysesLoading(false);
+      analysesFetchInFlight.current = false;
     }
   }
 

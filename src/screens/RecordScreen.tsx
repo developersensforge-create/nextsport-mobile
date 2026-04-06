@@ -186,7 +186,18 @@ export default function RecordScreen() {
       setUploadProgress(1);
       setUploadPhase('processing');
       const shouldPoll = result?.status !== 'completed';
-      navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
+
+      if (!shouldPoll && result?.data) {
+        // Pass prefetched analysis data directly — skips redundant getAnalysis call
+        logger.info(TAG, 'handleAnalyze: status=completed with data — passing prefetchedData via params');
+        navigation.replace('AnalysisResult', {
+          analysisId,
+          poll: false,
+          prefetchedData: result.data,
+        });
+      } else {
+        navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
+      }
     } catch (err: any) {
       setUploadPhase('idle');
       setUploading(false);
