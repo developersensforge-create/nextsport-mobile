@@ -188,12 +188,25 @@ export default function RecordScreen() {
       const shouldPoll = result?.status !== 'completed';
 
       if (!shouldPoll) {
-        // Pass prefetched analysis data directly — skips redundant getAnalysis call
+        // Map server response to Analysis shape before passing to result screen
+        const prefetchedAnalysis = {
+          id: analysisId,
+          status: 'completed' as const,
+          score: null,
+          feedback: result?.raw_analysis ?? null,
+          audio_url: null,
+          video_url: result?.result_video_url ?? null,
+          result_video_url: result?.result_video_url ?? null,
+          created_at: new Date().toISOString(),
+          strengths: result?.strengths ?? [],
+          improvements: result?.improvements ?? [],
+          recommended_drills: result?.recommended_drills ?? [],
+        };
         logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params');
         navigation.replace('AnalysisResult', {
           analysisId,
           poll: false,
-          prefetchedData: result,
+          prefetchedData: prefetchedAnalysis,
         });
       } else {
         navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
