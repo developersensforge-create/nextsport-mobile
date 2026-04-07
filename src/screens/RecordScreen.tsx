@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,40 +41,21 @@ export default function RecordScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
+  /** When true, preview unmounts expo-av first (no stop/unload — those can native-crash on some devices). */
+  const [hidePreviewPlayer, setHidePreviewPlayer] = useState(false);
   const cameraRef = useRef<any>(null);
-  /** Must be released before leaving preview; Android expo-av can SIGSEGV if player keeps decoding during stack replace. */
-  const previewVideoRef = useRef<any>(null);
 
   const TAG = 'RecordScreen';
 
-  async function releasePreviewPlayer(reason: string) {
-    const v = previewVideoRef.current as any;
-    if (!v) {
-      logger.info(TAG, `releasePreviewPlayer: no ref (${reason})`);
-      return;
-    }
-    // Wrap in a timeout race so a hanging native call never blocks navigation
-    const release = async () => {
-      try {
-        await v.stopAsync?.();
-      } catch (e) {
-        logger.warn(TAG, `releasePreviewPlayer: stopAsync (${reason})`, e);
-      }
-      try {
-        await v.unloadAsync?.();
-        logger.info(TAG, `releasePreviewPlayer: unloaded (${reason})`);
-      } catch (e) {
-        logger.warn(TAG, `releasePreviewPlayer: unloadAsync (${reason})`, e);
-      }
-    };
-    try {
-      await Promise.race([
-        release(),
-        new Promise<void>(resolve => setTimeout(resolve, 500)), // 500ms timeout
-      ]);
-    } catch (e) {
-      logger.warn(TAG, `releasePreviewPlayer: race failed (${reason})`, e);
-    }
+  async function preparePreviewUnmountForNavigation(reason: string) {
+    logger.info(TAG, `preparePreviewUnmount: start (${reason})`, {
+      hadVideoUri: !!videoUri,
+      hidePreviewPlayer,
+    });
+    setHidePreviewPlayer(true);
+    // Let React remove the native view before Screen transition / stack replace.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    logger.info(TAG, `preparePreviewUnmount: done (${reason})`);
   }
 
   const requestCameraPermission = useCallback(async () => {
@@ -117,6 +97,7 @@ export default function RecordScreen() {
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       logger.info(TAG, 'startRecording: recording completed', { uri: video.uri });
+      setHidePreviewPlayer(false);
       setVideoUri(video.uri);
     } catch (err: any) {
       logger.error(TAG, 'startRecording: recordAsync threw an error', err);
@@ -157,6 +138,7 @@ export default function RecordScreen() {
         width: asset.width,
         height: asset.height,
       });
+      setHidePreviewPlayer(false);
       setVideoUri(asset.uri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
     }
@@ -220,9 +202,7 @@ export default function RecordScreen() {
       setUploadPhase('processing');
       const shouldPoll = result?.status !== 'completed';
 
-      // Fire-and-forget: do NOT await — native unload can hang on some Android versions
-      // Navigation must not be blocked by native media cleanup
-      releasePreviewPlayer('before navigate to AnalysisResult').catch(() => {});
+      await preparePreviewUnmountForNavigation('before navigate to AnalysisResult');
 
       if (!shouldPoll) {
         // Map server response to Analysis shape before passing to result screen
@@ -300,8 +280,8 @@ export default function RecordScreen() {
     }
   }
 
-  async function resetVideo() {
-    await releasePreviewPlayer('user reset preview');
+  function resetVideo() {
+    setHidePreviewPlayer(false);
     setVideoUri(null);
     setUploadProgress(0);
   }
@@ -327,14 +307,17 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          <Video
-            ref={previewVideoRef}
-            source={{ uri: videoUri }}
-            style={styles.videoPreview}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping
-          />
+          {hidePreviewPlayer ? (
+            <View style={[styles.videoPreview, styles.videoPreviewPlaceholder]} />
+          ) : (
+            <Video
+              source={{ uri: videoUri }}
+              style={styles.videoPreview}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping
+            />
+          )}
         </View>
 
         <View style={styles.previewFooter}>
@@ -539,6 +522,9 @@ const styles = StyleSheet.create({
   },
   videoPreview: {
     flex: 1,
+  },
+  videoPreviewPlaceholder: {
+    backgroundColor: '#000',
   },
   previewFooter: {
     backgroundColor: COLORS.background,
