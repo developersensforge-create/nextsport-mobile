@@ -54,12 +54,14 @@ export async function getProfile(): Promise<Profile> {
   logger.info(TAG, 'getProfile: requesting /api/profile');
   const headers = await getAuthHeaders();
   const response = await axios.get(`${BASE_URL}/api/profile`, { headers });
+  // API returns { profile: {...}, user: {...} } — extract the nested profile object
+  const profileData = response.data?.profile ?? response.data;
   logger.info(TAG, 'getProfile: received profile', {
-    id: response.data?.id,
-    tokens_remaining: response.data?.tokens_remaining,
-    subscription_status: response.data?.subscription_status,
+    id: profileData?.id,
+    tokens_remaining: profileData?.tokens_remaining,
+    subscription_status: profileData?.subscription_status,
   });
-  return response.data;
+  return profileData;
 }
 
 export async function getAnalyses(): Promise<Analysis[]> {
