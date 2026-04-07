@@ -47,19 +47,32 @@ jobs:
             -Pandroid.injected.signing.key.password=nextsport2026 \
             -Pandroid.injected.signing.store.type=PKCS12
 
-      - name: Upload APK artifact & notify Discord
+      - name: Upload APK to Supabase & notify Discord
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: https://kpahmlhkvmasyobwrewy.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
+          APK_PATH=android/app/build/outputs/apk/release/app-release.apk
           RUN_NUM=${{ github.run_number }}
           SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          FILENAME="nextsport-build-${RUN_NUM}-${SHA_SHORT}.apk"
+
+          echo "Uploading $FILENAME to Supabase..."
+          curl -s -X POST \
+            "${SUPABASE_URL}/storage/v1/object/apk-builds/${FILENAME}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"${APK_PATH}"
+
+          APK_URL="${SUPABASE_URL}/storage/v1/object/public/apk-builds/${FILENAME}"
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1 | cut -c1-100)
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           curl -s -X POST "$DISCORD_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"content\": \"📱 **NextSport Android Build #${RUN_NUM} Ready**\n\n📥 **Download APK:** ${RUN_URL}#artifacts\n\n🔖 Commit: \`${SHA_SHORT}\` — ${COMMIT_MSG}\n\n_Go to the link above → scroll to Artifacts → download the APK._\"}"
+            -d "{\"content\": \"📱 **NextSport Android Build #${RUN_NUM} Ready**\n\n📥 **Download APK:** ${APK_URL}\n\n🔖 Commit: \`${SHA_SHORT}\` — ${COMMIT_MSG}\n\n_Uninstall the old version first, then install._\"}"
+
+          echo "Done! APK URL: $APK_URL"
 
       - uses: actions/upload-artifact@v4
         with:
