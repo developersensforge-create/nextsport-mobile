@@ -27,8 +27,9 @@ export default function AnalysisResultScreen() {
   const route = useRoute<ResultRouteProp>();
   const { analysisId, poll, prefetchedData } = route.params;
 
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize directly from prefetchedData if available — avoids async state update crash
+  const [analysis, setAnalysis] = useState<Analysis | null>(prefetchedData ?? null);
+  const [loading, setLoading] = useState(!prefetchedData);
   const [error, setError] = useState<string | null>(null);
 
   const TAG = 'AnalysisResultScreen';
