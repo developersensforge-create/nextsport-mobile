@@ -221,9 +221,10 @@ export async function submitAnalysis(
       { videoPath: filePath, duration: durationSeconds ?? 15 },
       { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 120000 }
     );
+    const analysisSummary = summarizeAnalysisForLog(analyzeResp.data);
     logger.info(TAG, 'submitAnalysis [4/4]: server analysis triggered', {
       status: analyzeResp.status,
-      data: analyzeResp.data,
+      summary: analysisSummary,
     });
   } catch (err: any) {
     logger.error(TAG, 'submitAnalysis [4/4]: FAILED to trigger server analysis', {
@@ -235,7 +236,7 @@ export async function submitAnalysis(
     throw err;
   }
 
-  logger.info(TAG, '=== submitAnalysis: DONE ===', analyzeResp.data);
+  logger.info(TAG, '=== submitAnalysis: DONE ===', summarizeAnalysisForLog(analyzeResp.data));
   return analyzeResp.data;
 }
 

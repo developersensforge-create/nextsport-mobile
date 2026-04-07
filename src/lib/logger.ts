@@ -23,6 +23,7 @@ export interface LogEntry {
 
 const STORAGE_KEY = 'nextsport_logs';
 const MAX_ENTRIES = 500;
+const MAX_EXTRA_CHARS = 4000;
 
 // In-memory cache so reads are fast during a session
 let _cache: LogEntry[] | null = null;
@@ -58,13 +59,16 @@ async function loadCache(): Promise<LogEntry[]> {
 
 async function append(level: LogLevel, tag: string, message: string, extra?: string) {
   const entries = await loadCache();
+  const boundedExtra = extra && extra.length > MAX_EXTRA_CHARS
+    ? `${extra.slice(0, MAX_EXTRA_CHARS)}\n...(truncated ${extra.length - MAX_EXTRA_CHARS} chars)`
+    : extra;
   const entry: LogEntry = {
     id: uid(),
     timestamp: new Date().toISOString(),
     level,
     tag,
     message,
-    extra,
+    extra: boundedExtra,
   };
   entries.push(entry);
   // Prune oldest if over limit
@@ -76,7 +80,15 @@ async function append(level: LogLevel, tag: string, message: string, extra?: str
   notify();
   // Mirror to console for Metro / Logcat
   const consoleFn = level === 'ERROR' ? console.error : level === 'WARN' ? console.warn : console.log;
-  consoleFn(`[${level}][${tag}] ${message}${extra ? '\n' + extra : ''}`);
+  consoleFn(`[${level}][${tag}] ${message}${boundedExtra ? '\n' + boundedExtra : ''}`);
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '[unserializable]';
+  }
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────────
@@ -84,13 +96,13 @@ async function append(level: LogLevel, tag: string, message: string, extra?: str
 export const logger = {
   /** Log an informational message. */
   info(tag: string, message: string, extra?: unknown) {
-    const extraStr = extra !== undefined ? JSON.stringify(extra, null, 2) : undefined;
+    const extraStr = extra !== undefined ? safeStringify(extra) : undefined;
     return append('INFO', tag, message, extraStr);
   },
 
   /** Log a warning. */
   warn(tag: string, message: string, extra?: unknown) {
-    const extraStr = extra !== undefined ? JSON.stringify(extra, null, 2) : undefined;
+    const extraStr = extra !== undefined ? safeStringify(extra) : undefined;
     return append('WARN', tag, message, extraStr);
   },
 
@@ -100,7 +112,7 @@ export const logger = {
     if (error instanceof Error) {
       extraStr = `${error.name}: ${error.message}\n${error.stack ?? ''}`;
     } else if (error !== undefined) {
-      extraStr = JSON.stringify(error, null, 2);
+      extraStr = safeStringify(error);
     }
     return append('ERROR', tag, message, extraStr);
   },
