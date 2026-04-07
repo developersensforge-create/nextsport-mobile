@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ export default function AnalysisResultScreen() {
   const [analysis, setAnalysis] = useState<Analysis | null>(prefetchedData ?? null);
   const [loading, setLoading] = useState(!prefetchedData);
   const [error, setError] = useState<string | null>(null);
+  const [videoPlayable, setVideoPlayable] = useState(true);
 
   const TAG = 'AnalysisResultScreen';
 
@@ -73,6 +74,24 @@ export default function AnalysisResultScreen() {
     }
     load();
   }, [analysisId, poll, prefetchedData]);
+
+  const resultVideoUrl = useMemo(() => {
+    const raw = analysis?.result_video_url;
+    if (typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+      return null;
+    }
+    if (!/^https?:\/\//i.test(trimmed)) {
+      logger.warn(TAG, 'result video URL is not a valid http(s) URL', { result_video_url: trimmed });
+      return null;
+    }
+    return trimmed;
+  }, [analysis]);
+
+  useEffect(() => {
+    setVideoPlayable(true);
+  }, [resultVideoUrl]);
 
   async function handleShare() {
     if (!analysis) return;
@@ -159,18 +178,34 @@ export default function AnalysisResultScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Annotated video — null-guarded */}
-        {!!analysis.result_video_url && (
+        {!!resultVideoUrl && videoPlayable && (
           <View style={styles.videoSection}>
             <Text style={styles.videoLabel}>📹 Your Annotated Swing</Text>
             <Text style={styles.videoSubLabel}>Slow motion with coaching cues</Text>
             <Video
-              source={{ uri: analysis.result_video_url }}
+              source={{ uri: resultVideoUrl }}
               style={styles.swingVideo}
               useNativeControls
               resizeMode={ResizeMode.CONTAIN}
               shouldPlay={false}
               isLooping={false}
+              onError={(videoErr) => {
+                logger.error(TAG, 'Result video failed to load', {
+                  result_video_url: resultVideoUrl,
+                  error: videoErr,
+                });
+                setVideoPlayable(false);
+              }}
             />
+          </View>
+        )}
+
+        {!!resultVideoUrl && !videoPlayable && (
+          <View style={styles.feedbackCard}>
+            <Text style={styles.cardTitle}>Video Unavailable</Text>
+            <Text style={styles.feedbackBody}>
+              We could not load the annotated video on this device. Your analysis text is still available below.
+            </Text>
           </View>
         )}
 
