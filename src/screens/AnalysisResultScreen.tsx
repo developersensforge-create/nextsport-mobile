@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Share,
   ActivityIndicator,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Video, ResizeMode } from 'expo-av';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
+import { summarizeAnalysisForLog } from '../lib/analysisDebug';
 import { logger } from '../lib/logger';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -34,46 +34,7 @@ export default function AnalysisResultScreen() {
   const [videoPlayable, setVideoPlayable] = useState(true);
 
   const TAG = 'AnalysisResultScreen';
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      logger.info(TAG, `load: starting — analysisId=${analysisId} poll=${poll} hasPrefetch=${!!prefetchedData}`);
-      try {
-        // If prefetched data was passed via navigation params, use it directly
-        // to avoid a redundant API call (which can cause crashes under memory pressure)
-        if (prefetchedData) {
-          logger.info(TAG, 'load: using prefetchedData — skipping getAnalysis call');
-          setAnalysis(prefetchedData);
-          setLoading(false);
-          return;
-        }
-        if (poll) {
-          logger.info(TAG, 'load: entering pollAnalysis loop');
-          const result = await pollAnalysis(analysisId);
-          logger.info(TAG, 'load: pollAnalysis complete', {
-            status: result.status,
-            hasStrengths: !!(result.strengths?.length),
-            hasImprovements: !!(result.improvements?.length),
-            hasFeedback: !!result.feedback,
-          });
-          setAnalysis(result);
-        } else {
-          logger.info(TAG, 'load: fetching single analysis');
-          const result = await getAnalysis(analysisId);
-          logger.info(TAG, 'load: getAnalysis done', { status: result.status });
-          setAnalysis(result);
-        }
-      } catch (err: any) {
-        logger.error(TAG, 'load: FAILED to load analysis', err);
-        setError(err.message ?? 'Failed to load analysis.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [analysisId, poll, prefetchedData]);
+  const loadGeneration = useRef(0);
 
   const resultVideoUrl = useMemo(() => {
     const raw = analysis?.result_video_url;
@@ -83,7 +44,10 @@ export default function AnalysisResultScreen() {
       return null;
     }
     if (!/^https?:\/\//i.test(trimmed)) {
-      logger.warn(TAG, 'result video URL is not a valid http(s) URL', { result_video_url: trimmed });
+      logger.warn(TAG, 'result video URL is not a valid http(s) URL', {
+        result_video_url_len: trimmed.length,
+        result_video_url_prefix: trimmed.slice(0, 24),
+      });
       return null;
     }
     return trimmed;
@@ -92,6 +56,127 @@ export default function AnalysisResultScreen() {
   useEffect(() => {
     setVideoPlayable(true);
   }, [resultVideoUrl]);
+
+  useEffect(() => {
+    logger.info(TAG, 'mounted', {
+      analysisId,
+      poll: poll ?? false,
+      hasPrefetch: !!prefetchedData,
+      prefetchSummary: summarizeAnalysisForLog(prefetchedData ?? null),
+    });
+  }, [analysisId, poll, prefetchedData]);
+
+  useEffect(() => {
+    if (loading) {
+      logger.info(TAG, 'render→loading', { analysisId, poll: poll ?? false });
+      return;
+    }
+    if (error || !analysis) {
+      logger.info(TAG, 'render→error or missing analysis', {
+        analysisId,
+        error,
+        summary: summarizeAnalysisForLog(analysis ?? null),
+      });
+      return;
+    }
+    if (analysis.status === 'failed') {
+      logger.info(TAG, 'render→failed status', {
+        analysisId,
+        summary: summarizeAnalysisForLog(analysis),
+      });
+      return;
+    }
+    logger.info(TAG, 'render→success body', {
+      analysisId,
+      summary: summarizeAnalysisForLog(analysis),
+      resolvedVideoUrl: !!resultVideoUrl,
+      videoPlayable,
+    });
+  }, [loading, error, analysis, analysisId, poll, resultVideoUrl, videoPlayable]);
+
+  useLayoutEffect(() => {
+    if (loading || error || !analysis || analysis.status === 'failed') return;
+    logger.info(TAG, 'layout: main result UI (sync, before paint)', {
+      analysisId,
+      summary: summarizeAnalysisForLog(analysis),
+      showVideoPlayer: !!(resultVideoUrl && videoPlayable),
+      resultVideoUrlResolved: !!resultVideoUrl,
+      videoPlayable,
+    });
+  }, [loading, error, analysis, analysisId, resultVideoUrl, videoPlayable]);
+
+  useEffect(() => {
+    if (!analysis || analysis.status === 'failed') return;
+    const check = (label: 'strengths' | 'improvements', arr: unknown) => {
+      if (!Array.isArray(arr)) {
+        logger.warn(TAG, `${label} is not an array`, { type: typeof arr });
+        return;
+      }
+      const bad = arr.findIndex((x) => typeof x !== 'string');
+      if (bad >= 0) {
+        logger.warn(TAG, `${label} contains non-string at index ${bad}`, {
+          types: arr.slice(0, 10).map((x) => typeof x),
+        });
+      }
+    };
+    check('strengths', analysis.strengths);
+    check('improvements', analysis.improvements);
+  }, [analysis]);
+
+  useEffect(() => {
+    async function load() {
+      const gen = ++loadGeneration.current;
+      setLoading(true);
+      setError(null);
+      logger.info(TAG, `load: starting — analysisId=${analysisId} poll=${poll} hasPrefetch=${!!prefetchedData} gen=${gen}`);
+      try {
+        // If prefetched data was passed via navigation params, use it directly
+        // to avoid a redundant API call (which can cause crashes under memory pressure)
+        if (prefetchedData) {
+          logger.info(TAG, 'load: using prefetchedData — skipping getAnalysis call', {
+            gen,
+            summary: summarizeAnalysisForLog(prefetchedData),
+          });
+          if (gen !== loadGeneration.current) return;
+          setAnalysis(prefetchedData);
+          setLoading(false);
+          logger.info(TAG, 'load: prefetch path done', { gen, summary: summarizeAnalysisForLog(prefetchedData) });
+          return;
+        }
+        if (poll) {
+          logger.info(TAG, 'load: entering pollAnalysis loop', { gen });
+          const result = await pollAnalysis(analysisId);
+          logger.info(TAG, 'load: pollAnalysis complete', {
+            gen,
+            status: result.status,
+            summary: summarizeAnalysisForLog(result),
+          });
+          if (gen !== loadGeneration.current) return;
+          setAnalysis(result);
+        } else {
+          logger.info(TAG, 'load: fetching single analysis', { gen });
+          const result = await getAnalysis(analysisId);
+          logger.info(TAG, 'load: getAnalysis done', {
+            gen,
+            status: result.status,
+            summary: summarizeAnalysisForLog(result),
+          });
+          if (gen !== loadGeneration.current) return;
+          setAnalysis(result);
+        }
+      } catch (err: any) {
+        logger.error(TAG, `load: FAILED to load analysis (gen=${gen})`, err);
+        if (gen !== loadGeneration.current) return;
+        setError(err.message ?? 'Failed to load analysis.');
+      } finally {
+        if (gen === loadGeneration.current) {
+          setLoading(false);
+          logger.info(TAG, 'load: finally — loading=false', { gen });
+        }
+      }
+    }
+    load();
+  }, [analysisId, poll, prefetchedData]);
 
   async function handleShare() {
     if (!analysis) return;

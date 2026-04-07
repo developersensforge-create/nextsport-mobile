@@ -17,6 +17,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
 import { getAnalyses, Analysis } from '../lib/api';
+import { logger } from '../lib/logger';
 import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
 import { COLORS } from '../theme';
@@ -182,7 +183,14 @@ export default function HomeScreen() {
               <AnalysisCard
                 key={a.id}
                 analysis={a}
-                onPress={() => navigation.navigate('AnalysisResult', { analysisId: a.id })}
+                onPress={() => {
+                  logger.info('HomeScreen', 'navigate AnalysisResult from recent list', {
+                    analysisId: a.id,
+                    status: a.status,
+                    hasResultVideo: !!a.result_video_url,
+                  });
+                  navigation.navigate('AnalysisResult', { analysisId: a.id });
+                }}
               />
             ))
           )}
