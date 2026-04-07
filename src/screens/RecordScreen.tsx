@@ -245,7 +245,14 @@ export default function RecordScreen() {
         setUploadProgress(Math.min(progress, 0.95));
       });
 
-      logger.info(TAG, 'handleAnalyze: submitAnalysis() returned', result);
+      logger.info(TAG, 'handleAnalyze: submitAnalysis() returned', {
+        analysisId: result?.analysisId ?? result?.id ?? null,
+        status: result?.status ?? null,
+        strengthsLen: Array.isArray(result?.strengths) ? result.strengths.length : null,
+        improvementsLen: Array.isArray(result?.improvements) ? result.improvements.length : null,
+        hasRawAnalysis: typeof result?.raw_analysis === 'string' && result.raw_analysis.length > 0,
+        hasResultVideoUrl: typeof result?.result_video_url === 'string' && result.result_video_url.trim().length > 0,
+      });
 
       // Guard: if result.id is missing the server-side handoff failed
       const analysisId = result?.analysisId ?? result?.id;
