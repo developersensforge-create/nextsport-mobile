@@ -220,7 +220,9 @@ export default function RecordScreen() {
       setUploadPhase('processing');
       const shouldPoll = result?.status !== 'completed';
 
-      await releasePreviewPlayer('before navigate to AnalysisResult');
+      // Fire-and-forget: do NOT await — native unload can hang on some Android versions
+      // Navigation must not be blocked by native media cleanup
+      releasePreviewPlayer('before navigate to AnalysisResult').catch(() => {});
 
       if (!shouldPoll) {
         // Map server response to Analysis shape before passing to result screen
