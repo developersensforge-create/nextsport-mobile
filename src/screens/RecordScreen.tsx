@@ -1,10 +1,11 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,22 +42,84 @@ export default function RecordScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
-  /** When true, preview unmounts expo-av first (no stop/unload — those can native-crash on some devices). */
-  const [hidePreviewPlayer, setHidePreviewPlayer] = useState(false);
   const cameraRef = useRef<any>(null);
+  const latestRef = useRef({
+    mode: initialMode as 'record' | 'upload',
+    hasVideoUri: false,
+    uploading: false,
+    uploadPhase: 'idle' as 'idle' | 'uploading' | 'processing' | 'done',
+    uploadProgress: 0,
+    isRecording: false,
+  });
 
   const TAG = 'RecordScreen';
 
-  async function preparePreviewUnmountForNavigation(reason: string) {
-    logger.info(TAG, `preparePreviewUnmount: start (${reason})`, {
-      hadVideoUri: !!videoUri,
-      hidePreviewPlayer,
+  useEffect(() => {
+    latestRef.current = {
+      mode,
+      hasVideoUri: !!videoUri,
+      uploading,
+      uploadPhase,
+      uploadProgress,
+      isRecording,
+    };
+  }, [mode, videoUri, uploading, uploadPhase, uploadProgress, isRecording]);
+
+  useEffect(() => {
+    logger.info(TAG, 'mounted', {
+      initialMode,
+      hasVideoUri: !!videoUri,
     });
-    setHidePreviewPlayer(true);
-    // Let React remove the native view before Screen transition / stack replace.
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    logger.info(TAG, `preparePreviewUnmount: done (${reason})`);
-  }
+    return () => {
+      logger.info(TAG, 'unmounted', latestRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    logger.info(TAG, 'lifecycle: videoUri changed', {
+      hasVideoUri: !!videoUri,
+      uriPrefix: videoUri ? videoUri.slice(0, 80) : null,
+    });
+  }, [videoUri]);
+
+  useEffect(() => {
+    logger.info(TAG, 'lifecycle: upload state changed', {
+      uploading,
+      uploadPhase,
+      uploadProgress: Math.round(uploadProgress * 100),
+    });
+  }, [uploading, uploadPhase, uploadProgress]);
+
+  useEffect(() => {
+    const unsubFocus = navigation.addListener('focus', () => {
+      logger.info(TAG, 'nav event: focus');
+    });
+    const unsubBlur = navigation.addListener('blur', () => {
+      logger.info(TAG, 'nav event: blur');
+    });
+    const unsubBeforeRemove = navigation.addListener('beforeRemove', (e: any) => {
+      logger.info(TAG, 'nav event: beforeRemove', {
+        actionType: e?.data?.action?.type,
+      });
+    });
+    const unsubTransitionStart = navigation.addListener('transitionStart' as never, (e: any) => {
+      logger.info(TAG, 'nav event: transitionStart', {
+        closing: e?.data?.closing,
+      });
+    });
+    const unsubTransitionEnd = navigation.addListener('transitionEnd' as never, (e: any) => {
+      logger.info(TAG, 'nav event: transitionEnd', {
+        closing: e?.data?.closing,
+      });
+    });
+    return () => {
+      unsubFocus();
+      unsubBlur();
+      unsubBeforeRemove();
+      unsubTransitionStart();
+      unsubTransitionEnd();
+    };
+  }, [navigation]);
 
   const requestCameraPermission = useCallback(async () => {
     logger.info(TAG, 'requestCameraPermission: requesting camera permission');
@@ -97,7 +160,6 @@ export default function RecordScreen() {
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       logger.info(TAG, 'startRecording: recording completed', { uri: video.uri });
-      setHidePreviewPlayer(false);
       setVideoUri(video.uri);
     } catch (err: any) {
       logger.error(TAG, 'startRecording: recordAsync threw an error', err);
@@ -138,7 +200,6 @@ export default function RecordScreen() {
         width: asset.width,
         height: asset.height,
       });
-      setHidePreviewPlayer(false);
       setVideoUri(asset.uri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
     }
@@ -202,38 +263,54 @@ export default function RecordScreen() {
       setUploadPhase('processing');
       const shouldPoll = result?.status !== 'completed';
 
-      await preparePreviewUnmountForNavigation('before navigate to AnalysisResult');
-
-      if (!shouldPoll) {
-        // Map server response to Analysis shape before passing to result screen
-        const prefetchedAnalysis = {
-          id: analysisId,
-          status: 'completed' as const,
-          score: null,
-          feedback: result?.raw_analysis ?? null,
-          audio_url: null,
-          video_url: result?.result_video_url ?? null,
-          result_video_url: result?.result_video_url ?? null,
-          created_at: new Date().toISOString(),
-          strengths: result?.strengths ?? [],
-          improvements: result?.improvements ?? [],
-          recommended_drills: result?.recommended_drills ?? [],
-        };
-        logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params', {
-          summary: summarizeAnalysisForLog(prefetchedAnalysis),
+      // Do not unmount/swap the preview Video in-place (that has native-crashed on some devices).
+      // Defer replace so the stack transition tears down Record (and its player) in one step.
+      await new Promise<void>((resolve) => {
+        logger.info(TAG, 'handleAnalyze: waiting for InteractionManager before navigation');
+        InteractionManager.runAfterInteractions(() => {
+          logger.info(TAG, 'handleAnalyze: InteractionManager callback fired');
+          requestAnimationFrame(() => {
+            logger.info(TAG, 'handleAnalyze: first requestAnimationFrame fired');
+            requestAnimationFrame(() => {
+              logger.info(TAG, 'handleAnalyze: second requestAnimationFrame fired');
+              try {
+                if (!shouldPoll) {
+                  const prefetchedAnalysis = {
+                    id: analysisId,
+                    status: 'completed' as const,
+                    score: null,
+                    feedback: result?.raw_analysis ?? null,
+                    audio_url: null,
+                    video_url: result?.result_video_url ?? null,
+                    result_video_url: result?.result_video_url ?? null,
+                    created_at: new Date().toISOString(),
+                    strengths: result?.strengths ?? [],
+                    improvements: result?.improvements ?? [],
+                    recommended_drills: result?.recommended_drills ?? [],
+                  };
+                  logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params', {
+                    summary: summarizeAnalysisForLog(prefetchedAnalysis),
+                  });
+                  navigation.replace('AnalysisResult', {
+                    analysisId,
+                    poll: false,
+                    prefetchedData: prefetchedAnalysis,
+                  });
+                } else {
+                  logger.info(TAG, 'handleAnalyze: navigating with poll (no prefetch)', {
+                    analysisId,
+                    poll: shouldPoll,
+                  });
+                  navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
+                }
+                logger.info(TAG, 'handleAnalyze: navigation.replace dispatched');
+              } finally {
+                resolve();
+              }
+            });
+          });
         });
-        navigation.replace('AnalysisResult', {
-          analysisId,
-          poll: false,
-          prefetchedData: prefetchedAnalysis,
-        });
-      } else {
-        logger.info(TAG, 'handleAnalyze: navigating with poll (no prefetch)', {
-          analysisId,
-          poll: shouldPoll,
-        });
-        navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
-      }
+      });
     } catch (err: any) {
       setUploadPhase('idle');
       setUploading(false);
@@ -281,7 +358,6 @@ export default function RecordScreen() {
   }
 
   function resetVideo() {
-    setHidePreviewPlayer(false);
     setVideoUri(null);
     setUploadProgress(0);
   }
@@ -307,17 +383,13 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          {hidePreviewPlayer ? (
-            <View style={[styles.videoPreview, styles.videoPreviewPlaceholder]} />
-          ) : (
-            <Video
-              source={{ uri: videoUri }}
-              style={styles.videoPreview}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              isLooping
-            />
-          )}
+          <Video
+            source={{ uri: videoUri }}
+            style={styles.videoPreview}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping
+          />
         </View>
 
         <View style={styles.previewFooter}>
@@ -522,9 +594,6 @@ const styles = StyleSheet.create({
   },
   videoPreview: {
     flex: 1,
-  },
-  videoPreviewPlaceholder: {
-    backgroundColor: '#000',
   },
   previewFooter: {
     backgroundColor: COLORS.background,
