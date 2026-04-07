@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase';
 import { logger } from './logger';
+import { summarizeAnalysisForLog } from './analysisDebug';
 
 const TAG = 'API';
 const BASE_URL = 'https://nextsport-ruizhi1201s-projects.vercel.app';
@@ -88,7 +89,7 @@ export async function getAnalysis(id: string): Promise<Analysis> {
   const headers = await getAuthHeaders();
   const response = await axios.get(`${BASE_URL}/api/analyses/${id}`, { headers });
   const a = response.data as Analysis;
-  logger.info(TAG, `getAnalysis: id=${id} status=${a.status} score=${a.score}`);
+  logger.info(TAG, `getAnalysis: id=${id} status=${a.status} score=${a.score}`, summarizeAnalysisForLog(a));
   return a;
 }
 
@@ -260,6 +261,7 @@ export async function pollAnalysis(id: string, maxAttempts = 30): Promise<Analys
         hasFeedback: !!analysis.feedback,
         hasAudio: !!analysis.audio_url,
         hasResultVideo: !!analysis.result_video_url,
+        summary: summarizeAnalysisForLog(analysis),
       });
       return analysis;
     }

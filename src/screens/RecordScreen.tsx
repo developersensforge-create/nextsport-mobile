@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { submitAnalysis } from '../lib/api';
+import { summarizeAnalysisForLog } from '../lib/analysisDebug';
 import { logger } from '../lib/logger';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
@@ -202,13 +203,19 @@ export default function RecordScreen() {
           improvements: result?.improvements ?? [],
           recommended_drills: result?.recommended_drills ?? [],
         };
-        logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params');
+        logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params', {
+          summary: summarizeAnalysisForLog(prefetchedAnalysis),
+        });
         navigation.replace('AnalysisResult', {
           analysisId,
           poll: false,
           prefetchedData: prefetchedAnalysis,
         });
       } else {
+        logger.info(TAG, 'handleAnalyze: navigating with poll (no prefetch)', {
+          analysisId,
+          poll: shouldPoll,
+        });
         navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
       }
     } catch (err: any) {
