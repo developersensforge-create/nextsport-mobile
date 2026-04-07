@@ -54,16 +54,27 @@ export default function RecordScreen() {
       logger.info(TAG, `releasePreviewPlayer: no ref (${reason})`);
       return;
     }
-    try {
+    // Wrap in a timeout race so a hanging native call never blocks navigation
+    const release = async () => {
       try {
         await v.stopAsync?.();
       } catch (e) {
         logger.warn(TAG, `releasePreviewPlayer: stopAsync (${reason})`, e);
       }
-      await v.unloadAsync?.();
-      logger.info(TAG, `releasePreviewPlayer: unloaded (${reason})`);
+      try {
+        await v.unloadAsync?.();
+        logger.info(TAG, `releasePreviewPlayer: unloaded (${reason})`);
+      } catch (e) {
+        logger.warn(TAG, `releasePreviewPlayer: unloadAsync (${reason})`, e);
+      }
+    };
+    try {
+      await Promise.race([
+        release(),
+        new Promise<void>(resolve => setTimeout(resolve, 500)), // 500ms timeout
+      ]);
     } catch (e) {
-      logger.warn(TAG, `releasePreviewPlayer: failed (${reason})`, e);
+      logger.warn(TAG, `releasePreviewPlayer: race failed (${reason})`, e);
     }
   }
 
