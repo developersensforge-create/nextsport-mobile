@@ -50,6 +50,17 @@ export interface Analysis {
   recommended_drills: string[] | null;
 }
 
+export interface SubmitAnalysisResponse {
+  id?: string;
+  analysisId?: string;
+  status?: 'pending' | 'processing' | 'completed' | 'failed';
+  raw_analysis?: string | null;
+  result_video_url?: string | null;
+  strengths?: string[];
+  improvements?: string[];
+  recommended_drills?: string[];
+}
+
 export async function getProfile(): Promise<Profile> {
   logger.info(TAG, 'getProfile: requesting /api/profile');
   const headers = await getAuthHeaders();
@@ -94,7 +105,7 @@ export async function submitAnalysis(
   videoMimeType: string = 'video/mp4',
   onProgress?: (progress: number) => void,
   durationSeconds?: number
-): Promise<{ id: string; analysisId?: string }> {
+): Promise<SubmitAnalysisResponse> {
   logger.info(TAG, '=== submitAnalysis: START ===', {
     videoUri,
     videoMimeType,
