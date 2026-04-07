@@ -35,6 +35,9 @@ export default function AnalysisResultScreen() {
 
   const TAG = 'AnalysisResultScreen';
   const loadGeneration = useRef(0);
+  const renderCount = useRef(0);
+
+  renderCount.current += 1;
 
   const resultVideoUrl = useMemo(() => {
     const raw = analysis?.result_video_url;
@@ -58,13 +61,63 @@ export default function AnalysisResultScreen() {
   }, [resultVideoUrl]);
 
   useEffect(() => {
+    logger.info(TAG, 'screen lifecycle: committed render', {
+      renderCount: renderCount.current,
+      loading,
+      hasError: !!error,
+      hasAnalysis: !!analysis,
+      status: analysis?.status ?? null,
+    });
+  });
+
+  useEffect(() => {
     logger.info(TAG, 'mounted', {
       analysisId,
       poll: poll ?? false,
       hasPrefetch: !!prefetchedData,
       prefetchSummary: summarizeAnalysisForLog(prefetchedData ?? null),
     });
+    return () => {
+      logger.info(TAG, 'unmounted', {
+        analysisId,
+        renderCount: renderCount.current,
+      });
+    };
   }, [analysisId, poll, prefetchedData]);
+
+  useEffect(() => {
+    const unsubFocus = navigation.addListener('focus', () => {
+      logger.info(TAG, 'nav event: focus', { analysisId });
+    });
+    const unsubBlur = navigation.addListener('blur', () => {
+      logger.info(TAG, 'nav event: blur', { analysisId });
+    });
+    const unsubBeforeRemove = navigation.addListener('beforeRemove', (e: any) => {
+      logger.info(TAG, 'nav event: beforeRemove', {
+        analysisId,
+        actionType: e?.data?.action?.type,
+      });
+    });
+    const unsubTransitionStart = navigation.addListener('transitionStart' as never, (e: any) => {
+      logger.info(TAG, 'nav event: transitionStart', {
+        analysisId,
+        closing: e?.data?.closing,
+      });
+    });
+    const unsubTransitionEnd = navigation.addListener('transitionEnd' as never, (e: any) => {
+      logger.info(TAG, 'nav event: transitionEnd', {
+        analysisId,
+        closing: e?.data?.closing,
+      });
+    });
+    return () => {
+      unsubFocus();
+      unsubBlur();
+      unsubBeforeRemove();
+      unsubTransitionStart();
+      unsubTransitionEnd();
+    };
+  }, [navigation, analysisId]);
 
   useEffect(() => {
     if (loading) {

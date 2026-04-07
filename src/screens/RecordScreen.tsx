@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -43,8 +43,83 @@ export default function RecordScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
   const cameraRef = useRef<any>(null);
+  const latestRef = useRef({
+    mode: initialMode as 'record' | 'upload',
+    hasVideoUri: false,
+    uploading: false,
+    uploadPhase: 'idle' as 'idle' | 'uploading' | 'processing' | 'done',
+    uploadProgress: 0,
+    isRecording: false,
+  });
 
   const TAG = 'RecordScreen';
+
+  useEffect(() => {
+    latestRef.current = {
+      mode,
+      hasVideoUri: !!videoUri,
+      uploading,
+      uploadPhase,
+      uploadProgress,
+      isRecording,
+    };
+  }, [mode, videoUri, uploading, uploadPhase, uploadProgress, isRecording]);
+
+  useEffect(() => {
+    logger.info(TAG, 'mounted', {
+      initialMode,
+      hasVideoUri: !!videoUri,
+    });
+    return () => {
+      logger.info(TAG, 'unmounted', latestRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    logger.info(TAG, 'lifecycle: videoUri changed', {
+      hasVideoUri: !!videoUri,
+      uriPrefix: videoUri ? videoUri.slice(0, 80) : null,
+    });
+  }, [videoUri]);
+
+  useEffect(() => {
+    logger.info(TAG, 'lifecycle: upload state changed', {
+      uploading,
+      uploadPhase,
+      uploadProgress: Math.round(uploadProgress * 100),
+    });
+  }, [uploading, uploadPhase, uploadProgress]);
+
+  useEffect(() => {
+    const unsubFocus = navigation.addListener('focus', () => {
+      logger.info(TAG, 'nav event: focus');
+    });
+    const unsubBlur = navigation.addListener('blur', () => {
+      logger.info(TAG, 'nav event: blur');
+    });
+    const unsubBeforeRemove = navigation.addListener('beforeRemove', (e: any) => {
+      logger.info(TAG, 'nav event: beforeRemove', {
+        actionType: e?.data?.action?.type,
+      });
+    });
+    const unsubTransitionStart = navigation.addListener('transitionStart' as never, (e: any) => {
+      logger.info(TAG, 'nav event: transitionStart', {
+        closing: e?.data?.closing,
+      });
+    });
+    const unsubTransitionEnd = navigation.addListener('transitionEnd' as never, (e: any) => {
+      logger.info(TAG, 'nav event: transitionEnd', {
+        closing: e?.data?.closing,
+      });
+    });
+    return () => {
+      unsubFocus();
+      unsubBlur();
+      unsubBeforeRemove();
+      unsubTransitionStart();
+      unsubTransitionEnd();
+    };
+  }, [navigation]);
 
   const requestCameraPermission = useCallback(async () => {
     logger.info(TAG, 'requestCameraPermission: requesting camera permission');
@@ -191,9 +266,13 @@ export default function RecordScreen() {
       // Do not unmount/swap the preview Video in-place (that has native-crashed on some devices).
       // Defer replace so the stack transition tears down Record (and its player) in one step.
       await new Promise<void>((resolve) => {
+        logger.info(TAG, 'handleAnalyze: waiting for InteractionManager before navigation');
         InteractionManager.runAfterInteractions(() => {
+          logger.info(TAG, 'handleAnalyze: InteractionManager callback fired');
           requestAnimationFrame(() => {
+            logger.info(TAG, 'handleAnalyze: first requestAnimationFrame fired');
             requestAnimationFrame(() => {
+              logger.info(TAG, 'handleAnalyze: second requestAnimationFrame fired');
               try {
                 if (!shouldPoll) {
                   const prefetchedAnalysis = {
