@@ -43,8 +43,29 @@ export default function RecordScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
   const cameraRef = useRef<any>(null);
+  /** Must be released before leaving preview; Android expo-av can SIGSEGV if player keeps decoding during stack replace. */
+  const previewVideoRef = useRef<any>(null);
 
   const TAG = 'RecordScreen';
+
+  async function releasePreviewPlayer(reason: string) {
+    const v = previewVideoRef.current as any;
+    if (!v) {
+      logger.info(TAG, `releasePreviewPlayer: no ref (${reason})`);
+      return;
+    }
+    try {
+      try {
+        await v.stopAsync?.();
+      } catch (e) {
+        logger.warn(TAG, `releasePreviewPlayer: stopAsync (${reason})`, e);
+      }
+      await v.unloadAsync?.();
+      logger.info(TAG, `releasePreviewPlayer: unloaded (${reason})`);
+    } catch (e) {
+      logger.warn(TAG, `releasePreviewPlayer: failed (${reason})`, e);
+    }
+  }
 
   const requestCameraPermission = useCallback(async () => {
     logger.info(TAG, 'requestCameraPermission: requesting camera permission');
@@ -188,6 +209,8 @@ export default function RecordScreen() {
       setUploadPhase('processing');
       const shouldPoll = result?.status !== 'completed';
 
+      await releasePreviewPlayer('before navigate to AnalysisResult');
+
       if (!shouldPoll) {
         // Map server response to Analysis shape before passing to result screen
         const prefetchedAnalysis = {
@@ -264,7 +287,8 @@ export default function RecordScreen() {
     }
   }
 
-  function resetVideo() {
+  async function resetVideo() {
+    await releasePreviewPlayer('user reset preview');
     setVideoUri(null);
     setUploadProgress(0);
   }
@@ -291,6 +315,7 @@ export default function RecordScreen() {
 
         <View style={styles.videoPreviewContainer}>
           <Video
+            ref={previewVideoRef}
             source={{ uri: videoUri }}
             style={styles.videoPreview}
             useNativeControls
