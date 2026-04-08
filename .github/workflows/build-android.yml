@@ -59,11 +59,16 @@ jobs:
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Notify Discord
-        if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          APK_URL="https://github.com/${{ github.repository }}/releases/download/build-${{ github.run_number }}/app-release.apk"
-          curl -s -X POST \
-          -H "Content-Type: application/json" \
-          -d '{"content":"NextSport Build #${{ github.run_number }} Ready - APK '$APK_URL'"}' \
-          "${{ secrets.DISCORD_WEBHOOK_URL }}" || true
+          RUN_NUM=${{ github.run_number }}
+          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1 | cut -c1-100)
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/build-${RUN_NUM}/app-release.apk"
+
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"📱 **NextSport Build #${RUN_NUM} Ready**\n\n📥 **APK:** ${APK_URL}\n\n🔖 \`${SHA_SHORT}\` — ${COMMIT_MSG}\"}" || true
