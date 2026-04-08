@@ -61,15 +61,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify Discord
-      if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
-      env:
-      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-      RUN_NUM: ${{ github.run_number }}
-      REPO: ${{ github.repository }}
-      SHA: ${{ github.sha }}
-      COMMIT_MSG: ${{ github.event.head_commit.message }}
-      run: |
-      APK_URL="https://github.com/${REPO}/releases/download/build-${RUN_NUM}/app-release.apk"
-      SHA_SHORT="${SHA:0:7}"
-      MSG="${SHA_SHORT} ${COMMIT_MSG}"
-      python3 -c "
+        if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_NUM: ${{ github.run_number }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          APK_URL="https://github.com/${REPO}/releases/download/build-${RUN_NUM}/app-release.apk"
+          SHA_SHORT="${SHA:0:7}"
+          MSG="${SHA_SHORT} ${COMMIT_MSG}"
+          python3 -c 
+      "
