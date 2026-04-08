@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ export default function AnalysisResultScreen() {
   const [loading, setLoading] = useState(!prefetchedData);
   const [error, setError] = useState<string | null>(null);
   const [videoPlayable, setVideoPlayable] = useState(true);
+  const [videoRefreshLoading, setVideoRefreshLoading] = useState(false);
 
   const TAG = 'AnalysisResultScreen';
   const loadGeneration = useRef(0);
@@ -56,9 +57,34 @@ export default function AnalysisResultScreen() {
     return trimmed;
   }, [analysis]);
 
+  const refreshResultVideo = useCallback(async () => {
+    if (videoRefreshLoading) return;
+    setVideoRefreshLoading(true);
+    try {
+      logger.info(TAG, 'refreshResultVideo: fetching latest analysis', { analysisId });
+      const latest = await getAnalysis(analysisId);
+      setAnalysis(latest);
+      logger.info(TAG, 'refreshResultVideo: latest fetched', {
+        summary: summarizeAnalysisForLog(latest),
+      });
+    } catch (err) {
+      logger.warn(TAG, 'refreshResultVideo: failed', err);
+    } finally {
+      setVideoRefreshLoading(false);
+    }
+  }, [analysisId, videoRefreshLoading]);
+
   useEffect(() => {
     setVideoPlayable(true);
   }, [resultVideoUrl]);
+
+  useEffect(() => {
+    if (!prefetchedData || resultVideoUrl) return;
+    const t = setTimeout(() => {
+      refreshResultVideo();
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [prefetchedData, resultVideoUrl, refreshResultVideo]);
 
   useEffect(() => {
     logger.info(TAG, 'screen lifecycle: committed render', {
@@ -344,6 +370,22 @@ export default function AnalysisResultScreen() {
             <Text style={styles.feedbackBody}>
               We could not load the annotated video on this device. Your analysis text is still available below.
             </Text>
+          </View>
+        )}
+
+        {!resultVideoUrl && (
+          <View style={styles.feedbackCard}>
+            <Text style={styles.cardTitle}>Annotated Video Not Ready</Text>
+            <Text style={styles.feedbackBody}>
+              Your analysis is complete, but no annotated result video URL is available yet.
+            </Text>
+            <TouchableOpacity
+              style={[styles.retryButton, videoRefreshLoading && { opacity: 0.6 }]}
+              onPress={refreshResultVideo}
+              disabled={videoRefreshLoading}
+            >
+              <Text style={styles.retryButtonText}>{videoRefreshLoading ? 'Checking...' : 'Check Again'}</Text>
+            </TouchableOpacity>
           </View>
         )}
 

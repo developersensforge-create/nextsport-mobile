@@ -40,6 +40,8 @@ export default function RecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState<string>('video/mp4');
+  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
+  const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
@@ -54,6 +56,16 @@ export default function RecordScreen() {
   });
 
   const TAG = 'RecordScreen';
+
+  function formatBytes(bytes: number | null) {
+    if (!bytes || bytes <= 0) return 'Unknown size';
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  function formatDuration(ms: number | null) {
+    if (!ms || ms <= 0) return 'Unknown duration';
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
 
   useEffect(() => {
     latestRef.current = {
@@ -162,6 +174,13 @@ export default function RecordScreen() {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       logger.info(TAG, 'startRecording: recording completed', { uri: video.uri });
       setVideoUri(video.uri);
+      setVideoDurationMs(null);
+      try {
+        const info = await FileSystem.getInfoAsync(video.uri);
+        setVideoSizeBytes((info as any)?.size ?? null);
+      } catch {
+        setVideoSizeBytes(null);
+      }
     } catch (err: any) {
       logger.error(TAG, 'startRecording: recordAsync threw an error', err);
       Alert.alert('Recording failed', 'Could not record video. Try uploading from your gallery instead.');
@@ -203,6 +222,8 @@ export default function RecordScreen() {
       });
       setVideoUri(asset.uri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
+      setVideoDurationMs(asset.duration ?? null);
+      setVideoSizeBytes((asset as any).fileSize ?? null);
     }
   }
 
@@ -367,6 +388,8 @@ export default function RecordScreen() {
 
   function resetVideo() {
     setVideoUri(null);
+    setVideoDurationMs(null);
+    setVideoSizeBytes(null);
     setUploadProgress(0);
   }
 
@@ -414,6 +437,9 @@ export default function RecordScreen() {
             <Text style={styles.previewHintTitle}>In-app preview disabled for stability</Text>
             <Text style={styles.previewHintText}>
               Tap below to open the selected clip in your device player.
+            </Text>
+            <Text style={styles.previewMetaText}>
+              Selected: {formatDuration(videoDurationMs)} • {formatBytes(videoSizeBytes)}
             </Text>
             <TouchableOpacity style={styles.previewOpenButton} onPress={openSystemPreview}>
               <Text style={styles.previewOpenButtonText}>Open Preview Externally</Text>
@@ -644,6 +670,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  previewMetaText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
   },
   previewOpenButton: {
     marginTop: 16,
