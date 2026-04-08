@@ -411,9 +411,9 @@ export default function RecordScreen() {
         <View style={styles.videoPreviewContainer}>
           <View style={styles.videoPreviewPlaceholder}>
             <Ionicons name="videocam-outline" size={44} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.previewHintTitle}>In-app preview disabled for stability</Text>
+            <Text style={styles.previewHintTitle}>Safe preview mode</Text>
             <Text style={styles.previewHintText}>
-              Tap below to open the selected clip in your device player.
+              In-app video playback is disabled to avoid Android crashes. You can still verify the clip.
             </Text>
             <TouchableOpacity style={styles.previewOpenButton} onPress={openSystemPreview}>
               <Text style={styles.previewOpenButtonText}>Open Preview Externally</Text>
