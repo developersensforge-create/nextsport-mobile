@@ -51,7 +51,7 @@ jobs:
             -Pandroid.injected.signing.store.type=PKCS12
 
       - name: Create GitHub Release with APK
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}
           name: Build #${{ github.run_number }}
