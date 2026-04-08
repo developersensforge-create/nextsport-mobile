@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   InteractionManager,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +16,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Audio, Video, ResizeMode } from 'expo-av';
+import { Audio } from 'expo-av';
 import { submitAnalysis } from '../lib/api';
 import { summarizeAnalysisForLog } from '../lib/analysisDebug';
 import { logger } from '../lib/logger';
@@ -369,6 +370,24 @@ export default function RecordScreen() {
     setUploadProgress(0);
   }
 
+  async function openSystemPreview() {
+    if (!videoUri) return;
+    logger.info(TAG, 'openSystemPreview: opening external player', {
+      uriPrefix: videoUri.slice(0, 80),
+    });
+    try {
+      const canOpen = await Linking.canOpenURL(videoUri);
+      if (!canOpen) {
+        Alert.alert('Preview unavailable', 'No compatible video app is available on this device.');
+        return;
+      }
+      await Linking.openURL(videoUri);
+    } catch (err) {
+      logger.warn(TAG, 'openSystemPreview: failed to open external player', err);
+      Alert.alert('Preview unavailable', 'Could not open video preview on this device.');
+    }
+  }
+
   // --- Video preview state ---
   if (videoUri) {
     return (
@@ -390,13 +409,16 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          <Video
-            source={{ uri: videoUri }}
-            style={styles.videoPreview}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping
-          />
+          <View style={styles.videoPreviewPlaceholder}>
+            <Ionicons name="videocam-outline" size={44} color="rgba(255,255,255,0.8)" />
+            <Text style={styles.previewHintTitle}>In-app preview disabled for stability</Text>
+            <Text style={styles.previewHintText}>
+              Tap below to open the selected clip in your device player.
+            </Text>
+            <TouchableOpacity style={styles.previewOpenButton} onPress={openSystemPreview}>
+              <Text style={styles.previewOpenButtonText}>Open Preview Externally</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.previewFooter}>
@@ -601,6 +623,40 @@ const styles = StyleSheet.create({
   },
   videoPreview: {
     flex: 1,
+  },
+  videoPreviewPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: '#000',
+  },
+  previewHintTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  previewHintText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  previewOpenButton: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  previewOpenButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   previewFooter: {
     backgroundColor: COLORS.background,
