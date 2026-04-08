@@ -37,6 +37,8 @@ export default function AnalysisResultScreen() {
   const TAG = 'AnalysisResultScreen';
   const loadGeneration = useRef(0);
   const renderCount = useRef(0);
+  const autoRefreshFired = useRef(false);
+  const refreshInFlight = useRef(false);
 
   renderCount.current += 1;
 
@@ -58,7 +60,8 @@ export default function AnalysisResultScreen() {
   }, [analysis]);
 
   const refreshResultVideo = useCallback(async () => {
-    if (videoRefreshLoading) return;
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     setVideoRefreshLoading(true);
     try {
       logger.info(TAG, 'refreshResultVideo: fetching latest analysis', { analysisId });
@@ -70,16 +73,18 @@ export default function AnalysisResultScreen() {
     } catch (err) {
       logger.warn(TAG, 'refreshResultVideo: failed', err);
     } finally {
+      refreshInFlight.current = false;
       setVideoRefreshLoading(false);
     }
-  }, [analysisId, videoRefreshLoading]);
+  }, [analysisId]);
 
   useEffect(() => {
     setVideoPlayable(true);
   }, [resultVideoUrl]);
 
   useEffect(() => {
-    if (!prefetchedData || resultVideoUrl) return;
+    if (!prefetchedData || resultVideoUrl || autoRefreshFired.current) return;
+    autoRefreshFired.current = true;
     const t = setTimeout(() => {
       refreshResultVideo();
     }, 1500);
