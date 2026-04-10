@@ -56,6 +56,17 @@ export default function RecordScreen() {
   });
 
   const TAG = 'RecordScreen';
+  const hasAutoPickedRef = React.useRef(false);
+
+  // Auto-launch gallery picker when entering upload mode
+  React.useEffect(() => {
+    if (initialMode === 'upload' && !hasAutoPickedRef.current && !videoUri) {
+      hasAutoPickedRef.current = true;
+      // Small delay so screen renders first
+      const t = setTimeout(() => pickVideo(), 300);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   function formatBytes(bytes: number | null) {
     if (!bytes || bytes <= 0) return 'Unknown size';
