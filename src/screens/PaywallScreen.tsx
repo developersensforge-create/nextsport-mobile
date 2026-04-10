@@ -48,7 +48,7 @@ export default function PaywallScreen() {
   const navigation = useNavigation<PaywallNavProp>();
 
   async function handleSubscribe() {
-    await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
+    await WebBrowser.openBrowserAsync('https://nextsport-six.vercel.app/pricing');
   }
 
   return (
