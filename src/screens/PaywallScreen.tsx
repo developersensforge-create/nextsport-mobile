@@ -48,7 +48,7 @@ export default function PaywallScreen() {
   const navigation = useNavigation<PaywallNavProp>();
 
   async function handleSubscribe() {
-    await WebBrowser.openBrowserAsync('https://nextsport-six.vercel.app/pricing');
+    await WebBrowser.openBrowserAsync('https://buy.stripe.com/bJeeVc9eW1rZ4Me1hu2Ry00');
   }
 
   return (
