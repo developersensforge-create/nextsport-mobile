@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,8 +15,11 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { getAuthHeaders } from '../lib/api';
 
 type PaywallNavProp = StackNavigationProp<RootStackParamList, 'Paywall'>;
+
+const BASE_URL = 'https://nextsport-ruizhi1201s-projects.vercel.app';
 
 const FEATURES = [
   {
@@ -46,9 +51,33 @@ const FEATURES = [
 
 export default function PaywallScreen() {
   const navigation = useNavigation<PaywallNavProp>();
+  const [loading, setLoading] = useState(false);
 
   async function handleSubscribe() {
-    await WebBrowser.openBrowserAsync('https://buy.stripe.com/bJeeVc9eW1rZ4Me1hu2Ry00');
+    setLoading(true);
+    try {
+      // Get user's auth token
+      const headers = await getAuthHeaders();
+      const token = headers['Authorization']?.replace('Bearer ', '');
+
+      // Call our backend to create a personalized checkout session
+      const res = await fetch(`${BASE_URL}/api/stripe/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: token }),
+      });
+      const data = await res.json();
+
+      if (data.url) {
+        await WebBrowser.openBrowserAsync(data.url);
+      } else {
+        Alert.alert('Error', data.error || 'Could not open checkout. Try again.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Could not connect. Check your internet and try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -115,7 +144,7 @@ export default function PaywallScreen() {
           activeOpacity={0.85}
         >
           <Ionicons name="star" size={20} color="#000" style={{ marginRight: 10 }} />
-          <Text style={styles.subscribeButtonText}>Subscribe for $14.99/mo</Text>
+          {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.subscribeButtonText}>Subscribe for $14.99/mo</Text>}
         </TouchableOpacity>
 
         <Text style={styles.legalText}>
