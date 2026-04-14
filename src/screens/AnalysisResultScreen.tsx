@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Share,
   ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +38,7 @@ export default function AnalysisResultScreen() {
   const [videoRefreshLoading, setVideoRefreshLoading] = useState(false);
 
   const TAG = 'AnalysisResultScreen';
+  const allowInAppResultVideo = Platform.OS !== 'android';
   const loadGeneration = useRef(0);
   const renderCount = useRef(0);
   const autoRefreshFired = useRef(false);
@@ -272,6 +276,21 @@ export default function AnalysisResultScreen() {
     }
   }
 
+  async function openAnnotatedVideoExternally() {
+    if (!resultVideoUrl) return;
+    try {
+      const canOpen = await Linking.canOpenURL(resultVideoUrl);
+      if (!canOpen) {
+        Alert.alert('Video unavailable', 'No compatible app can open this video URL on your device.');
+        return;
+      }
+      await Linking.openURL(resultVideoUrl);
+    } catch (err) {
+      logger.warn(TAG, 'openAnnotatedVideoExternally: failed', err);
+      Alert.alert('Video unavailable', 'Could not open annotated video externally.');
+    }
+  }
+
   function handleAnalyzeAnother() {
     navigation.navigate('Record');
   }
@@ -347,7 +366,7 @@ export default function AnalysisResultScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Annotated video — null-guarded */}
-        {!!resultVideoUrl && videoPlayable && (
+        {!!resultVideoUrl && videoPlayable && allowInAppResultVideo && (
           <View style={styles.videoSection}>
             <Text style={styles.videoLabel}>📹 Your Annotated Swing</Text>
             <Text style={styles.videoSubLabel}>Slow motion with coaching cues</Text>
@@ -369,7 +388,19 @@ export default function AnalysisResultScreen() {
           </View>
         )}
 
-        {!!resultVideoUrl && !videoPlayable && (
+        {!!resultVideoUrl && !allowInAppResultVideo && (
+          <View style={styles.feedbackCard}>
+            <Text style={styles.cardTitle}>Annotated Video Ready</Text>
+            <Text style={styles.feedbackBody}>
+              To keep Android stable, open the annotated video in your device player.
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={openAnnotatedVideoExternally}>
+              <Text style={styles.retryButtonText}>Open Annotated Video</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!!resultVideoUrl && !videoPlayable && allowInAppResultVideo && (
           <View style={styles.feedbackCard}>
             <Text style={styles.cardTitle}>Video Unavailable</Text>
             <Text style={styles.feedbackBody}>
