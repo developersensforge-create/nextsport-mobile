@@ -7,15 +7,13 @@ import {
   TouchableOpacity,
   Share,
   ActivityIndicator,
-  Alert,
-  Linking,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { summarizeAnalysisForLog } from '../lib/analysisDebug';
 import { logger } from '../lib/logger';
@@ -24,6 +22,41 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type ResultNavProp = StackNavigationProp<RootStackParamList, 'AnalysisResult'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'AnalysisResult'>;
+
+function ResultVideoPlayer({
+  url,
+  onError,
+}: {
+  url: string;
+  onError: () => void;
+}) {
+  const VideoViewComponent = VideoView as unknown as React.ComponentType<any>;
+  const player = useVideoPlayer(url, (videoPlayer) => {
+    videoPlayer.loop = false;
+  });
+
+  useEffect(() => {
+    const subscription = player.addListener('statusChange', ({ error }) => {
+      if (error) {
+        onError();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [player, onError]);
+
+  return (
+    <VideoViewComponent
+      player={player}
+      style={styles.swingVideo}
+      nativeControls
+      contentFit="contain"
+      surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
+    />
+  );
+}
 
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
@@ -38,11 +71,11 @@ export default function AnalysisResultScreen() {
   const [videoRefreshLoading, setVideoRefreshLoading] = useState(false);
 
   const TAG = 'AnalysisResultScreen';
-  const allowInAppResultVideo = Platform.OS !== 'android';
   const loadGeneration = useRef(0);
   const renderCount = useRef(0);
   const autoRefreshFired = useRef(false);
   const refreshInFlight = useRef(false);
+  const redirectingAwayRef = useRef(false);
 
   renderCount.current += 1;
 
@@ -123,6 +156,7 @@ export default function AnalysisResultScreen() {
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', () => {
       logger.info(TAG, 'nav event: focus', { analysisId });
+      redirectingAwayRef.current = false;
     });
     const unsubBlur = navigation.addListener('blur', () => {
       logger.info(TAG, 'nav event: blur', { analysisId });
@@ -132,6 +166,20 @@ export default function AnalysisResultScreen() {
         analysisId,
         actionType: e?.data?.action?.type,
       });
+      if (Platform.OS !== 'android' || redirectingAwayRef.current) return;
+      const actionType = e?.data?.action?.type;
+      if (actionType === 'GO_BACK' || actionType === 'POP') {
+        e.preventDefault();
+        redirectingAwayRef.current = true;
+        logger.info(TAG, 'nav event: beforeRemove intercepted on Android', {
+          analysisId,
+          actionType,
+        });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
+      }
     });
     const unsubTransitionStart = navigation.addListener('transitionStart' as never, (e: any) => {
       logger.info(TAG, 'nav event: transitionStart', {
@@ -276,22 +324,26 @@ export default function AnalysisResultScreen() {
     }
   }
 
-  async function openAnnotatedVideoExternally() {
-    if (!resultVideoUrl) return;
-    try {
-      const canOpen = await Linking.canOpenURL(resultVideoUrl);
-      if (!canOpen) {
-        Alert.alert('Video unavailable', 'No compatible app can open this video URL on your device.');
-        return;
-      }
-      await Linking.openURL(resultVideoUrl);
-    } catch (err) {
-      logger.warn(TAG, 'openAnnotatedVideoExternally: failed', err);
-      Alert.alert('Video unavailable', 'Could not open annotated video externally.');
-    }
-  }
+  const exitToHome = useCallback(() => {
+    if (redirectingAwayRef.current) return;
+    redirectingAwayRef.current = true;
+    logger.info(TAG, 'exitToHome: resetting navigation to MainTabs', { analysisId });
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs' }],
+    });
+  }, [analysisId, navigation]);
 
   function handleAnalyzeAnother() {
+    if (Platform.OS === 'android') {
+      redirectingAwayRef.current = true;
+      logger.info(TAG, 'handleAnalyzeAnother: resetting stack to Record on Android', { analysisId });
+      navigation.reset({
+        index: 1,
+        routes: [{ name: 'MainTabs' }, { name: 'Record' }],
+      });
+      return;
+    }
     navigation.navigate('Record');
   }
 
@@ -351,7 +403,7 @@ export default function AnalysisResultScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={Platform.OS === 'android' ? exitToHome : () => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Swing Analysis</Text>
@@ -366,21 +418,15 @@ export default function AnalysisResultScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Annotated video — null-guarded */}
-        {!!resultVideoUrl && videoPlayable && allowInAppResultVideo && (
+        {!!resultVideoUrl && videoPlayable && (
           <View style={styles.videoSection}>
             <Text style={styles.videoLabel}>📹 Your Annotated Swing</Text>
             <Text style={styles.videoSubLabel}>Slow motion with coaching cues</Text>
-            <Video
-              source={{ uri: resultVideoUrl }}
-              style={styles.swingVideo}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={false}
-              isLooping={false}
-              onError={(videoErr) => {
+            <ResultVideoPlayer
+              url={resultVideoUrl}
+              onError={() => {
                 logger.error(TAG, 'Result video failed to load', {
                   result_video_url: resultVideoUrl,
-                  error: videoErr,
                 });
                 setVideoPlayable(false);
               }}
@@ -388,19 +434,7 @@ export default function AnalysisResultScreen() {
           </View>
         )}
 
-        {!!resultVideoUrl && !allowInAppResultVideo && (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>Annotated Video Ready</Text>
-            <Text style={styles.feedbackBody}>
-              To keep Android stable, open the annotated video in your device player.
-            </Text>
-            <TouchableOpacity style={styles.retryButton} onPress={openAnnotatedVideoExternally}>
-              <Text style={styles.retryButtonText}>Open Annotated Video</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {!!resultVideoUrl && !videoPlayable && allowInAppResultVideo && (
+        {!!resultVideoUrl && !videoPlayable && (
           <View style={styles.feedbackCard}>
             <Text style={styles.cardTitle}>Video Unavailable</Text>
             <Text style={styles.feedbackBody}>
