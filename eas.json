@@ -13,8 +13,8 @@
         "buildType": "apk"
       },
       "ios": {
-        "simulator": false,
-        "distribution": "internal"
+        "distribution": "store",
+        "buildConfiguration": "Release"
       }
     },
     "production": {
