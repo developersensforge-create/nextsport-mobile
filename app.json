@@ -27,7 +27,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nextsport.app"
+      "bundleIdentifier": "com.nextsport.app",
+      "buildNumber": "1"
     },
     "plugins": [
       [
