@@ -418,7 +418,7 @@ export default function AnalysisResultScreen() {
           <Ionicons name="close-circle" size={56} color={COLORS.danger} />
           <Text style={styles.errorTitle}>Analysis Failed</Text>
           <Text style={styles.errorText}>
-            We couldn't process your video. Please try recording again with better lighting.
+            Server processing failed. Please try again — if this keeps happening, try a shorter video (under 15 seconds).
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={handleAnalyzeAnother}>
             <Text style={styles.retryButtonText}>Try Again</Text>
