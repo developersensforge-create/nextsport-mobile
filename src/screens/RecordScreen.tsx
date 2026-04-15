@@ -244,6 +244,7 @@ export default function RecordScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       allowsEditing: false,
       quality: 1,
+      legacy: Platform.OS === 'android',
     });
 
     if (result.canceled) {
@@ -255,6 +256,7 @@ export default function RecordScreen() {
       const asset = result.assets[0];
       logger.info(TAG, 'pickVideo: video selected', {
         uri: asset.uri,
+        uriScheme: typeof asset.uri === 'string' ? asset.uri.split(':')[0] : null,
         mimeType: asset.mimeType,
         fileSize: (asset as any).fileSize,
         duration: asset.duration,
