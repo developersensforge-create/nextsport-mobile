@@ -7,6 +7,7 @@ import {
   Alert,
   InteractionManager,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { submitAnalysis } from '../lib/api';
 import { summarizeAnalysisForLog } from '../lib/analysisDebug';
 import { logger } from '../lib/logger';
@@ -28,6 +30,41 @@ type RecordNavProp = StackNavigationProp<RootStackParamList, 'Record'>;
 type RecordRouteProp = RouteProp<RootStackParamList, 'Record'>;
 
 const TOKEN_COST = 10;
+
+function SelectedVideoPreview({
+  url,
+  onError,
+}: {
+  url: string;
+  onError: () => void;
+}) {
+  const VideoViewComponent = VideoView as unknown as React.ComponentType<any>;
+  const player = useVideoPlayer(url, (videoPlayer) => {
+    videoPlayer.loop = false;
+  });
+
+  useEffect(() => {
+    const subscription = player.addListener('statusChange', ({ error }) => {
+      if (error) {
+        onError();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [player, onError]);
+
+  return (
+    <VideoViewComponent
+      player={player}
+      style={styles.videoPreview}
+      nativeControls
+      contentFit="contain"
+      surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
+    />
+  );
+}
 
 export default function RecordScreen() {
   const navigation = useNavigation<RecordNavProp>();
@@ -42,6 +79,7 @@ export default function RecordScreen() {
   const [videoMime, setVideoMime] = useState<string>('video/mp4');
   const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
+  const [previewPlayable, setPreviewPlayable] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
@@ -104,6 +142,10 @@ export default function RecordScreen() {
       hasVideoUri: !!videoUri,
       uriPrefix: videoUri ? videoUri.slice(0, 80) : null,
     });
+  }, [videoUri]);
+
+  useEffect(() => {
+    setPreviewPlayable(true);
   }, [videoUri]);
 
   useEffect(() => {
@@ -401,6 +443,7 @@ export default function RecordScreen() {
     setVideoUri(null);
     setVideoDurationMs(null);
     setVideoSizeBytes(null);
+    setPreviewPlayable(true);
     setUploadProgress(0);
   }
 
@@ -443,22 +486,35 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          <View style={styles.videoPreviewPlaceholder}>
-            <Ionicons name="videocam-outline" size={44} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.previewHintTitle}>In-app preview disabled for stability</Text>
-            <Text style={styles.previewHintText}>
-              Tap below to open the selected clip in your device player.
-            </Text>
-            <Text style={styles.previewMetaText}>
-              Selected: {formatDuration(videoDurationMs)} • {formatBytes(videoSizeBytes)}
-            </Text>
-            <TouchableOpacity style={styles.previewOpenButton} onPress={openSystemPreview}>
-              <Text style={styles.previewOpenButtonText}>Open Preview Externally</Text>
-            </TouchableOpacity>
-          </View>
+          {previewPlayable ? (
+            <SelectedVideoPreview
+              url={videoUri}
+              onError={() => {
+                logger.error(TAG, 'Selected preview video failed to load', {
+                  uriPrefix: videoUri.slice(0, 80),
+                });
+                setPreviewPlayable(false);
+              }}
+            />
+          ) : (
+            <View style={styles.videoPreviewPlaceholder}>
+              <Ionicons name="warning-outline" size={44} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.previewHintTitle}>Preview unavailable in-app</Text>
+              <Text style={styles.previewHintText}>
+                This clip could not be previewed on this device. You can still open it externally or continue to
+                analysis.
+              </Text>
+              <TouchableOpacity style={styles.previewOpenButton} onPress={openSystemPreview}>
+                <Text style={styles.previewOpenButtonText}>Open Preview Externally</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <View style={styles.previewFooter}>
+          <Text style={styles.previewFooterMetaText}>
+            Selected: {formatDuration(videoDurationMs)} • {formatBytes(videoSizeBytes)}
+          </Text>
           <View style={styles.tokenRow}>
             <Ionicons name="flash" size={16} color={COLORS.accent} />
             <Text style={styles.tokenText}>This analysis costs {TOKEN_COST} tokens</Text>
@@ -686,6 +742,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontSize: 12,
     marginTop: 8,
+    textAlign: 'center',
+  },
+  previewFooterMetaText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginBottom: 12,
     textAlign: 'center',
   },
   previewOpenButton: {
