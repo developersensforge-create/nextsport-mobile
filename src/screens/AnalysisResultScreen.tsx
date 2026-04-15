@@ -27,6 +27,33 @@ function normalizeFeedbackItem(item: string) {
   return item.replace(/^[\s\-•\d\.)]+/, '').trim();
 }
 
+type ParsedImprovement = {
+  title: string | null;
+  issue: string;
+  fix: string | null;
+};
+
+function parseImprovementItem(item: string): ParsedImprovement {
+  const normalized = normalizeFeedbackItem(item);
+  const objectLikeMatch = normalized.match(
+    /^\{\s*(['"])(.*?)\1\s*:\s*(['"])([\s\S]*?)\3\s*,\s*(['"])fix\5\s*:\s*(['"])([\s\S]*?)\6\s*\}$/i
+  );
+
+  if (objectLikeMatch) {
+    return {
+      title: objectLikeMatch[2].trim(),
+      issue: objectLikeMatch[4].trim(),
+      fix: objectLikeMatch[7].trim(),
+    };
+  }
+
+  return {
+    title: null,
+    issue: normalized,
+    fix: null,
+  };
+}
+
 function ResultVideoPlayer({
   url,
   onError,
@@ -402,7 +429,7 @@ export default function AnalysisResultScreen() {
   }
 
   const strengths = (analysis.strengths ?? []).map(normalizeFeedbackItem).filter(Boolean);
-  const improvements = (analysis.improvements ?? []).map(normalizeFeedbackItem).filter(Boolean);
+  const improvements = (analysis.improvements ?? []).map(parseImprovementItem).filter((item) => item.issue);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -486,7 +513,16 @@ export default function AnalysisResultScreen() {
                 <View style={styles.improvementBadge}>
                   <Text style={styles.improvementBadgeText}>{i + 1}</Text>
                 </View>
-                <Text style={styles.improvementText}>{item}</Text>
+                <View style={styles.improvementContent}>
+                  {!!item.title && <Text style={styles.improvementTitle}>{item.title}</Text>}
+                  <Text style={styles.improvementText}>{item.issue}</Text>
+                  {!!item.fix && (
+                    <View style={styles.improvementFixBox}>
+                      <Text style={styles.improvementFixLabel}>Suggested Fix</Text>
+                      <Text style={styles.improvementFixText}>{item.fix}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             ))}
           </View>
@@ -660,6 +696,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.18)',
   },
+  improvementContent: {
+    flex: 1,
+  },
   improvementBadge: {
     width: 24,
     height: 24,
@@ -675,11 +714,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+  improvementTitle: {
+    color: COLORS.accent,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
   improvementText: {
     color: COLORS.text,
     fontSize: 15,
     lineHeight: 22,
     flex: 1,
+  },
+  improvementFixBox: {
+    marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  improvementFixLabel: {
+    color: COLORS.accent,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  improvementFixText: {
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 21,
   },
   analyzeAnotherButton: {
     backgroundColor: COLORS.accent,
