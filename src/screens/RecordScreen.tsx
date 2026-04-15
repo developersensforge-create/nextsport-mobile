@@ -17,7 +17,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Audio } from 'expo-av';
+// Audio permission is handled by expo-camera during video recording
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { submitAnalysis } from '../lib/api';
 import { summarizeAnalysisForLog } from '../lib/analysisDebug';
@@ -207,19 +207,7 @@ export default function RecordScreen() {
       return;
     }
 
-    // Request microphone permission before recording
-    logger.info(TAG, 'startRecording: requesting microphone permission');
-    const { status: audioStatus } = await Audio.requestPermissionsAsync();
-    logger.info(TAG, `startRecording: microphone permission status=${audioStatus}`);
-    if (audioStatus !== 'granted') {
-      logger.warn(TAG, 'startRecording: microphone permission DENIED');
-      Alert.alert(
-        'Microphone Permission Required',
-        'Please allow microphone access to record swing videos with audio.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+    // Microphone permission is handled automatically by expo-camera when recording video
 
     setIsRecording(true);
     logger.info(TAG, 'startRecording: calling cameraRef.recordAsync()', { maxDuration: 30 });
