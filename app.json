@@ -43,8 +43,7 @@
           "cameraPermission": "Allow NextSport to access your camera to record swing videos.",
           "microphonePermission": "Allow NextSport to access your microphone for video recording."
         }
-      ],
-      "expo-av"
+      ]
     ],
     "extra": {
       "eas": {
