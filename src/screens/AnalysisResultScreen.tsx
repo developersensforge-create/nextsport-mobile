@@ -23,6 +23,10 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 type ResultNavProp = StackNavigationProp<RootStackParamList, 'AnalysisResult'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'AnalysisResult'>;
 
+function normalizeFeedbackItem(item: string) {
+  return item.replace(/^[\s\-•\d\.)]+/, '').trim();
+}
+
 function ResultVideoPlayer({
   url,
   onError,
@@ -397,8 +401,8 @@ export default function AnalysisResultScreen() {
     );
   }
 
-  const strengths = analysis.strengths ?? [];
-  const improvements = analysis.improvements ?? [];
+  const strengths = (analysis.strengths ?? []).map(normalizeFeedbackItem).filter(Boolean);
+  const improvements = (analysis.improvements ?? []).map(normalizeFeedbackItem).filter(Boolean);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -459,14 +463,6 @@ export default function AnalysisResultScreen() {
           </View>
         )}
 
-        {/* Raw analysis text */}
-        {!!analysis.feedback && (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>📋 Raw Analysis</Text>
-            <Text style={styles.feedbackBody}>{analysis.feedback}</Text>
-          </View>
-        )}
-
         {/* Strengths */}
         {strengths.length > 0 && (
           <View style={styles.feedbackCard}>
@@ -484,17 +480,20 @@ export default function AnalysisResultScreen() {
         {improvements.length > 0 && (
           <View style={styles.feedbackCard}>
             <Text style={styles.cardTitle}>Areas to Improve 🎯</Text>
+            <Text style={styles.sectionHint}>Focus on these next to make the biggest difference.</Text>
             {improvements.map((item, i) => (
-              <View key={i} style={styles.bulletRow}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>{item}</Text>
+              <View key={i} style={styles.improvementCard}>
+                <View style={styles.improvementBadge}>
+                  <Text style={styles.improvementBadgeText}>{i + 1}</Text>
+                </View>
+                <Text style={styles.improvementText}>{item}</Text>
               </View>
             ))}
           </View>
         )}
 
         {/* Empty state if nothing to show */}
-        {!analysis.feedback && strengths.length === 0 && improvements.length === 0 && (
+        {strengths.length === 0 && improvements.length === 0 && (
           <View style={styles.feedbackCard}>
             <Text style={styles.feedbackBody}>
               Analysis complete. Detailed feedback will appear here once available.
@@ -628,6 +627,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 23,
   },
+  sectionHint: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
   bulletRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -643,6 +648,37 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 15,
     lineHeight: 23,
+    flex: 1,
+  },
+  improvementCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.18)',
+  },
+  improvementBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  improvementBadgeText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  improvementText: {
+    color: COLORS.text,
+    fontSize: 15,
+    lineHeight: 22,
     flex: 1,
   },
   analyzeAnotherButton: {
