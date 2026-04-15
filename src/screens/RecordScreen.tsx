@@ -17,6 +17,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
 // Audio permission is handled by expo-camera during video recording
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { submitAnalysis } from '../lib/api';
@@ -30,6 +32,24 @@ type RecordNavProp = StackNavigationProp<RootStackParamList, 'Record'>;
 type RecordRouteProp = RouteProp<RootStackParamList, 'Record'>;
 
 const TOKEN_COST = 10;
+
+function getVideoFileExtension(uri: string, mimeType: string | null | undefined) {
+  const normalizedMime = (mimeType ?? '').toLowerCase();
+  if (normalizedMime.includes('quicktime')) return '.mov';
+  if (normalizedMime.includes('3gpp')) return '.3gp';
+  if (normalizedMime.includes('mp4')) return '.mp4';
+  if (normalizedMime.includes('mpeg')) return '.mpeg';
+
+  const extMatch = uri.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
+  return extMatch ? `.${extMatch[1].toLowerCase()}` : '.mp4';
+}
+
+async function materializeAndroidVideoForPreview(uri: string, mimeType: string | null | undefined) {
+  const extension = getVideoFileExtension(uri, mimeType);
+  const targetUri = `${FileSystem.cacheDirectory}picked-preview-${Date.now()}${extension}`;
+  await FileSystem.copyAsync({ from: uri, to: targetUri });
+  return targetUri;
+}
 
 function SelectedVideoPreview({
   url,
@@ -254,19 +274,48 @@ export default function RecordScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      let resolvedUri = asset.uri;
+
+      if (Platform.OS === 'android') {
+        try {
+          resolvedUri = await materializeAndroidVideoForPreview(asset.uri, asset.mimeType);
+          logger.info(TAG, 'pickVideo: copied Android video into app cache for preview', {
+            sourceUriPrefix: asset.uri.slice(0, 80),
+            resolvedUriPrefix: resolvedUri.slice(0, 80),
+          });
+        } catch (copyErr) {
+          logger.warn(TAG, 'pickVideo: failed to copy Android video into app cache, falling back to picker URI', {
+            sourceUriPrefix: asset.uri.slice(0, 80),
+            error: copyErr,
+          });
+        }
+      }
+
+      let resolvedSizeBytes = (asset as any).fileSize ?? null;
+      if (!resolvedSizeBytes) {
+        try {
+          const info = await FileSystem.getInfoAsync(resolvedUri);
+          resolvedSizeBytes = (info as any)?.size ?? null;
+        } catch {
+          resolvedSizeBytes = null;
+        }
+      }
+
       logger.info(TAG, 'pickVideo: video selected', {
         uri: asset.uri,
         uriScheme: typeof asset.uri === 'string' ? asset.uri.split(':')[0] : null,
+        resolvedUri: resolvedUri,
+        resolvedUriScheme: typeof resolvedUri === 'string' ? resolvedUri.split(':')[0] : null,
         mimeType: asset.mimeType,
-        fileSize: (asset as any).fileSize,
+        fileSize: resolvedSizeBytes,
         duration: asset.duration,
         width: asset.width,
         height: asset.height,
       });
-      setVideoUri(asset.uri);
+      setVideoUri(resolvedUri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
       setVideoDurationMs(asset.duration ?? null);
-      setVideoSizeBytes((asset as any).fileSize ?? null);
+      setVideoSizeBytes(resolvedSizeBytes);
     }
   }
 
@@ -443,14 +492,45 @@ export default function RecordScreen() {
       uriPrefix: videoUri.slice(0, 80),
     });
     try {
-      const canOpen = await Linking.canOpenURL(videoUri);
-      if (!canOpen) {
-        Alert.alert('Preview unavailable', 'No compatible video app is available on this device.');
+      if (Platform.OS === 'android') {
+        const intentUri = videoUri.startsWith('file://')
+          ? await FileSystem.getContentUriAsync(videoUri)
+          : videoUri;
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: intentUri,
+          type: videoMime || 'video/*',
+          flags: 1,
+        });
         return;
       }
-      await Linking.openURL(videoUri);
+      if (/^https?:\/\//i.test(videoUri)) {
+        const canOpen = await Linking.canOpenURL(videoUri);
+        if (canOpen) {
+          await Linking.openURL(videoUri);
+          return;
+        }
+      }
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(videoUri, {
+          mimeType: videoMime || 'video/*',
+          dialogTitle: 'Open video preview',
+        });
+        return;
+      }
+      Alert.alert('Preview unavailable', 'No compatible video app is available on this device.');
     } catch (err) {
       logger.warn(TAG, 'openSystemPreview: failed to open external player', err);
+      try {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(videoUri, {
+            mimeType: videoMime || 'video/*',
+            dialogTitle: 'Open video preview',
+          });
+          return;
+        }
+      } catch (shareErr) {
+        logger.warn(TAG, 'openSystemPreview: sharing fallback also failed', shareErr);
+      }
       Alert.alert('Preview unavailable', 'Could not open video preview on this device.');
     }
   }
