@@ -82,7 +82,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The stride should be quiet and controlled — no lunging. Think "step to hit," not "step then hit."',
     referenceVideo: {
-      url: 'https://www.youtube.com/watch?v=OnwcYS4fa7Y',
+      url: 'https://youtu.be/Z9G6GJJBk2E',
       title: 'How to Improve Your Batting Stance & Setup',
       creator: 'AntonelliBaseball',
       note: 'Watch 2:00 – 3:30 — stride and weight transfer section',
@@ -162,7 +162,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Go lighter than you think — the goal is speed of rotation, not fighting the band.',
     referenceVideo: {
-      url: 'https://youtu.be/VAk5WHHd26s?si=Xi9jpGtI6Vayo3z7&t=46',
+      url: 'https://youtu.be/8TmxfFGSh5M',
       title: 'Resistance Band Exercises | Hitting Done Right',
       creator: 'Hitting Done Right - HDR',
       note: 'Watch 0:46 – 2:20 — focuses on rotating before the swing',
@@ -216,7 +216,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Casting (letting the arms fly away) is the #1 cause of weak contact. This drill exposes it immediately.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      url: 'https://youtu.be/w-rZGXMb2dI',
       title: 'Great Connection Ball Hitting Drill',
       creator: 'TheBullpenTraining',
       note: 'Full video demonstration',
@@ -242,7 +242,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Most hitters are too top-hand dominant. The bottom hand is the guide — the top hand is the finisher.',
     referenceVideo: {
-      url: 'https://youtu.be/CPzMopFu95M?si=Sys4zD8W4xaxvHs9&t=20',
+      url: 'https://youtu.be/f7d9lxSTJDs',
       title: 'Top 5 PVC Hitting Drills - At Home Baseball Drills',
       creator: 'Northern Baseball Training',
       note: 'Watch 0:20 – 1:41 — one-hand bat path isolation techniques',
@@ -298,7 +298,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Inside → out front. Middle → even with hip. Outside → slightly behind hip. This is the contact point triangle.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      url: 'https://youtu.be/hpMFCnmLYqA',
       title: 'Tee Zone Work — Contact Point Basics',
       creator: 'TheBullpenTraining',
       note: 'Full video — demonstrates tee placement for different pitch zones',
@@ -326,7 +326,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'A good finish is proof of a good swing. If your finish is off-balance or your arms are bent awkwardly, work backward to find the breakdown.',
     referenceVideo: {
-      url: 'https://youtu.be/r9fs-HGCZTs?si=nRNK09svz3WK0Cjx&t=149',
+      url: 'https://youtu.be/G5RtQ8IHTuo',
       title: 'Medicine Ball Drills to Increase Bat Speed and Power',
       creator: 'AntonelliBaseball',
       note: 'Watch 2:29 – 3:10 — extension and finish position focus',
@@ -406,7 +406,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The backhand is all about the crossover step. If your first step is wrong, the play is over before it starts.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
+      url: 'https://youtube.com/shorts/4HL2J3gUSCQ',
       title: 'Top 3 At Home Infield Drills',
       creator: 'NorthernBaseballTraining',
       note: 'Watch 0:02 – 0:05 mark (backhand segment)',
@@ -432,7 +432,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'On the forehand, you\'re almost always fielding on the run. Train your body to field and redirect in one smooth motion.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
+      url: 'https://youtu.be/zrSRMqHCp7A',
       title: 'Top 3 At Home Infield Drills',
       creator: 'NorthernBaseballTraining',
       note: 'Watch 0:06 – 0:09 mark (forehand segment)',
