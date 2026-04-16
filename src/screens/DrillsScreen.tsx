@@ -229,61 +229,57 @@ export default function DrillsScreen() {
                   )}
                 </View>
 
-                {/* Description */}
-                <Text style={styles.sectionLabel}>Overview</Text>
-                <Text style={styles.descriptionText}>{selectedDrill.description}</Text>
-
-                {/* Steps */}
-                <Text style={styles.sectionLabel}>How To Do It</Text>
-                {selectedDrill.steps.map((step, i) => (
-                  <View key={i} style={styles.stepRow}>
-                    <View style={styles.stepNumber}>
-                      <Text style={styles.stepNumberText}>{i + 1}</Text>
+                {/* Reference Video — shown first, directly tappable */}
+                {selectedDrill.referenceVideo && (
+                  <TouchableOpacity
+                    style={styles.videoCardDirect}
+                    onPress={() => handleWatchVideo(selectedDrill.referenceVideo!.url)}
+                    activeOpacity={0.82}
+                  >
+                    <View style={styles.videoThumbPlaceholder}>
+                      <Ionicons name="logo-youtube" size={36} color="#ff0000" />
+                      <View style={styles.playOverlay}>
+                        <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                      </View>
                     </View>
-                    <Text style={styles.stepText}>{step}</Text>
-                  </View>
-                ))}
+                    <View style={styles.videoDirectInfo}>
+                      <Text style={styles.videoTitle} numberOfLines={2}>
+                        {selectedDrill.referenceVideo.title}
+                      </Text>
+                      <Text style={styles.videoCreator}>{selectedDrill.referenceVideo.creator}</Text>
+                      {selectedDrill.referenceVideo.note && (
+                        <Text style={styles.videoNote}>⏱ {selectedDrill.referenceVideo.note}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
 
-                {/* Coach tip */}
-                <View style={styles.tipCard}>
-                  <Ionicons name="bulb-outline" size={20} color="#f59e0b" />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.tipLabel}>Coach's Tip</Text>
-                    <Text style={styles.tipText}>{selectedDrill.coachTip}</Text>
+                {/* Drill Focus */}
+                <Text style={styles.sectionLabel}>Drill Focus</Text>
+                <View style={styles.bulletCard}>
+                  <View style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.bulletText}>{selectedDrill.description}</Text>
+                  </View>
+                  <View style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.bulletText}>{selectedDrill.coachTip}</Text>
                   </View>
                 </View>
 
-                {/* Reference Video button */}
-                {selectedDrill.referenceVideo && (
-                  <View style={styles.videoSection}>
-                    <Text style={styles.sectionLabel}>Reference Video</Text>
-                    <View style={styles.videoCard}>
-                      <View style={styles.videoInfo}>
-                        <Ionicons name="logo-youtube" size={22} color="#ff0000" />
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={styles.videoTitle} numberOfLines={2}>
-                            {selectedDrill.referenceVideo.title}
-                          </Text>
-                          <Text style={styles.videoCreator}>
-                            {selectedDrill.referenceVideo.creator}
-                          </Text>
-                          {selectedDrill.referenceVideo.note && (
-                            <Text style={styles.videoNote}>
-                              ⏱ {selectedDrill.referenceVideo.note}
-                            </Text>
-                          )}
+                {/* Common Mistakes */}
+                {selectedDrill.steps.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>Common Mistakes to Avoid</Text>
+                    <View style={styles.bulletCard}>
+                      {selectedDrill.steps.slice(0, 3).map((step, i) => (
+                        <View key={i} style={styles.bulletRow}>
+                          <Text style={[styles.bulletDot, { color: '#ef4444' }]}>✕</Text>
+                          <Text style={styles.bulletText}>{step}</Text>
                         </View>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.watchBtn}
-                        onPress={() => handleWatchVideo(selectedDrill.referenceVideo!.url)}
-                        activeOpacity={0.82}
-                      >
-                        <Ionicons name="play" size={16} color="#000" />
-                        <Text style={styles.watchBtnText}>Watch Now</Text>
-                      </TouchableOpacity>
+                      ))}
                     </View>
-                  </View>
+                  </>
                 )}
               </ScrollView>
             </SafeAreaView>
@@ -440,6 +436,53 @@ const styles = StyleSheet.create({
   modalMetaDivider: { width: 1, backgroundColor: COLORS.border, marginVertical: 12 },
   sectionLabel: { color: COLORS.text, fontSize: 16, fontWeight: '700', marginBottom: 10 },
   descriptionText: { color: COLORS.muted, fontSize: 14, lineHeight: 22, marginBottom: 24 },
+  videoCardDirect: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  videoThumbPlaceholder: {
+    height: 160,
+    backgroundColor: '#111',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playOverlay: {
+    position: 'absolute',
+  },
+  videoDirectInfo: {
+    padding: 12,
+  },
+  bulletCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 10,
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  bulletDot: {
+    color: COLORS.accent,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
+    minWidth: 16,
+  },
+  bulletText: {
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 21,
+    flex: 1,
+  },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12, gap: 12 },
   stepNumber: {
     width: 26,
