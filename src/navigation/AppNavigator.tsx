@@ -26,7 +26,7 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  Record: { mode?: 'record' | 'upload' } | undefined;
+  Record: { mode?: 'record' | 'upload'; athleteId?: string } | undefined;
   AnalysisResult: { analysisId: string; poll?: boolean; prefetchedData?: Analysis | null };
   Paywall: undefined;
 };

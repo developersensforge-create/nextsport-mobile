@@ -90,6 +90,7 @@ export default function RecordScreen() {
   const navigation = useNavigation<RecordNavProp>();
   const route = useRoute<RecordRouteProp>();
   const initialMode = route.params?.mode ?? 'record';
+  const athleteId = route.params?.athleteId;
 
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<'record' | 'upload'>(initialMode);
@@ -357,7 +358,7 @@ export default function RecordScreen() {
       const result = await submitAnalysis(videoUri, videoMime, (progress) => {
         // Cap at 95% during upload — the last 5% is server-side handoff
         setUploadProgress(Math.min(progress, 0.95));
-      });
+      }, undefined, athleteId);
 
       logger.info(TAG, 'handleAnalyze: submitAnalysis() returned', {
         analysisId: result?.analysisId ?? result?.id ?? null,

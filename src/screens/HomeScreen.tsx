@@ -16,10 +16,12 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
+import { useAthletes } from '../hooks/useAthletes';
 import { getAnalyses, Analysis } from '../lib/api';
 import { logger } from '../lib/logger';
 import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
+import AthleteModal from '../components/AthleteModal';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
@@ -32,18 +34,30 @@ export default function HomeScreen() {
   const navigation = useNavigation<HomeNavProp>();
   const { user } = useAuth();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
+  const {
+    athletes,
+    activeAthlete,
+    activeAthleteId,
+    setActiveAthlete,
+    createAthlete,
+  } = useAthletes();
+
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [analysesLoading, setAnalysesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [addAthleteVisible, setAddAthleteVisible] = useState(false);
   // Guard against duplicate simultaneous fetches triggered by useFocusEffect re-fires
   const analysesFetchInFlight = useRef(false);
+  // Track which athleteId was used for the last fetch so we can reload on change
+  const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
 
-  async function loadAnalyses() {
+  async function loadAnalyses(forAthleteId?: string) {
     if (analysesFetchInFlight.current) return;
     analysesFetchInFlight.current = true;
     try {
-      const data = await getAnalyses();
+      const data = await getAnalyses(forAthleteId ?? undefined);
       setAnalyses(data.slice(0, 5));
+      lastFetchedAthleteId.current = forAthleteId;
     } catch {
       // silently fail on load — show empty state
     } finally {
@@ -54,15 +68,21 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadAnalyses();
+      loadAnalyses(activeAthleteId ?? undefined);
       refetchProfile();
-    }, [refetchProfile])
+    }, [refetchProfile, activeAthleteId])
   );
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([loadAnalyses(), refetchProfile()]);
+    await Promise.all([loadAnalyses(activeAthleteId ?? undefined), refetchProfile()]);
     setRefreshing(false);
+  }
+
+  async function handleAthleteSwitch(id: string) {
+    await setActiveAthlete(id);
+    setAnalysesLoading(true);
+    await loadAnalyses(id);
   }
 
   function handleRecord() {
@@ -70,7 +90,7 @@ export default function HomeScreen() {
       navigation.navigate('Paywall');
       return;
     }
-    navigation.navigate('Record');
+    navigation.navigate('Record', { athleteId: activeAthleteId ?? undefined });
   }
 
   function handleUpload() {
@@ -78,7 +98,7 @@ export default function HomeScreen() {
       navigation.navigate('Paywall');
       return;
     }
-    navigation.navigate('Record', { mode: 'upload' });
+    navigation.navigate('Record', { mode: 'upload', athleteId: activeAthleteId ?? undefined });
   }
 
   const firstName = profile?.full_name?.split(' ')[0]
@@ -108,6 +128,72 @@ export default function HomeScreen() {
           </View>
           {profile && <TokenBadge tokens={profile.tokens_remaining} size="md" />}
         </View>
+
+        {/* Athlete Switcher */}
+        {athletes.length > 0 && (
+          <View style={styles.athleteSwitcher}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.athleteScrollContent}
+            >
+              {athletes.map((athlete) => {
+                const isActive = athlete.id === activeAthleteId;
+                const initials = athlete.name
+                  .split(' ')
+                  .map((w) => w[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase();
+                const avatarColor = athlete.avatar_color ?? COLORS.accent;
+                return (
+                  <TouchableOpacity
+                    key={athlete.id}
+                    style={[
+                      styles.athleteChip,
+                      isActive && styles.athleteChipActive,
+                    ]}
+                    onPress={() => handleAthleteSwitch(athlete.id)}
+                    activeOpacity={0.75}
+                  >
+                    <View
+                      style={[
+                        styles.avatarCircle,
+                        { backgroundColor: `${avatarColor}26` },
+                        isActive && { borderColor: avatarColor, borderWidth: 2 },
+                      ]}
+                    >
+                      <Text style={[styles.avatarInitial, { color: avatarColor }]}>
+                        {initials}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.athleteChipName,
+                        isActive && styles.athleteChipNameActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {athlete.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Add athlete button */}
+              <TouchableOpacity
+                style={styles.addAthleteChip}
+                onPress={() => setAddAthleteVisible(true)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.addAthleteCircle}>
+                  <Ionicons name="add" size={20} color={COLORS.accent} />
+                </View>
+                <Text style={styles.addAthleteText}>Add</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
 
         {/* Token info card */}
         {profile && (
@@ -169,7 +255,12 @@ export default function HomeScreen() {
 
         {/* Recent Analyses */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Analyses</Text>
+          <Text style={styles.sectionTitle}>
+            Recent Analyses
+            {activeAthlete ? (
+              <Text style={styles.sectionSubtitle}> · {activeAthlete.name}</Text>
+            ) : null}
+          </Text>
           {analysesLoading ? (
             <Text style={styles.emptyText}>Loading…</Text>
           ) : analyses.length === 0 ? (
@@ -196,6 +287,21 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Add Athlete Modal */}
+      <AthleteModal
+        visible={addAthleteVisible}
+        onSave={async (data) => {
+          try {
+            const created = await createAthlete(data);
+            setAddAthleteVisible(false);
+            await handleAthleteSwitch(created.id);
+          } catch {
+            Alert.alert('Error', 'Failed to create athlete. Please try again.');
+          }
+        }}
+        onCancel={() => setAddAthleteVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -217,7 +323,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   greeting: {
     color: COLORS.text,
@@ -229,6 +335,78 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
+  // Athlete switcher
+  athleteSwitcher: {
+    marginBottom: 16,
+  },
+  athleteScrollContent: {
+    paddingRight: 4,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  athleteChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 24,
+    paddingRight: 14,
+    paddingLeft: 6,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 8,
+  },
+  athleteChipActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(34,197,94,0.06)',
+  },
+  avatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  athleteChipName: {
+    color: COLORS.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    maxWidth: 90,
+  },
+  athleteChipNameActive: {
+    color: COLORS.text,
+  },
+  addAthleteChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 24,
+    paddingRight: 14,
+    paddingLeft: 6,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.3)',
+    gap: 8,
+  },
+  addAthleteCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addAthleteText: {
+    color: COLORS.accent,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  // Info card
   infoCard: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
@@ -326,6 +504,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    fontWeight: '400',
   },
   emptyCard: {
     backgroundColor: COLORS.card,

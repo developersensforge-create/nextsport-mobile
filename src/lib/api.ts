@@ -76,10 +76,11 @@ export async function getProfile(): Promise<Profile> {
   return profileData;
 }
 
-export async function getAnalyses(): Promise<Analysis[]> {
-  logger.info(TAG, 'getAnalyses: requesting /api/analyses');
+export async function getAnalyses(athleteId?: string): Promise<Analysis[]> {
+  const params = athleteId ? `?athlete_id=${athleteId}` : '';
+  logger.info(TAG, `getAnalyses: requesting /api/analyses${params}`);
   const headers = await getAuthHeaders();
-  const response = await axios.get(`${BASE_URL}/api/analyses`, { headers });
+  const response = await axios.get(`${BASE_URL}/api/analyses${params}`, { headers });
   logger.info(TAG, `getAnalyses: received ${response.data?.length ?? 0} analyses`);
   return response.data;
 }
@@ -105,7 +106,8 @@ export async function submitAnalysis(
   videoUri: string,
   videoMimeType: string = 'video/mp4',
   onProgress?: (progress: number) => void,
-  durationSeconds?: number
+  durationSeconds?: number,
+  athleteId?: string,
 ): Promise<SubmitAnalysisResponse> {
   logger.info(TAG, '=== submitAnalysis: START ===', {
     videoUri,
@@ -218,7 +220,7 @@ export async function submitAnalysis(
   try {
     analyzeResp = await axios.post(
       `${BASE_URL}/api/analyze`,
-      { videoPath: filePath, duration: durationSeconds ?? 15 },
+      { videoPath: filePath, duration: durationSeconds ?? 15, ...(athleteId ? { athleteId } : {}) },
       { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 120000 }
     );
     const analysisSummary = summarizeAnalysisForLog(analyzeResp.data);

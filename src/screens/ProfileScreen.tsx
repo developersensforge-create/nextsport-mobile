@@ -9,6 +9,9 @@ import {
   Share,
   RefreshControl,
 } from 'react-native';
+import { updateAthlete, Athlete } from '../lib/api';
+import { useAthletes } from '../hooks/useAthletes';
+import AthleteModal from '../components/AthleteModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -40,6 +43,16 @@ export default function ProfileScreen() {
   const { logs, exportLogs, clearLogs } = useLogContext();
   const [referral, setReferral] = useState<ReferralData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const {
+    athletes,
+    activeAthleteId,
+    setActiveAthlete,
+    createAthlete,
+    deleteAthlete,
+    refetch: refetchAthletes,
+  } = useAthletes();
+  const [athleteModalVisible, setAthleteModalVisible] = useState(false);
+  const [editingAthlete, setEditingAthlete] = useState<Athlete | null>(null);
 
   async function loadReferral() {
     try {
@@ -58,8 +71,54 @@ export default function ProfileScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([refetch(), loadReferral()]);
+    await Promise.all([refetch(), loadReferral(), refetchAthletes()]);
     setRefreshing(false);
+  }
+
+  function handleDeleteAthlete(athlete: Athlete) {
+    Alert.alert(
+      'Delete Athlete',
+      `Remove "${athlete.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAthlete(athlete.id);
+            } catch {
+              Alert.alert('Error', 'Failed to delete athlete.');
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  function openAthleteModal(athlete?: Athlete) {
+    setEditingAthlete(athlete ?? null);
+    setAthleteModalVisible(true);
+  }
+
+  async function handleAthleteModalSave(data: {
+    name: string;
+    age_group: string;
+    level: string;
+    sport: string;
+  }) {
+    try {
+      if (editingAthlete) {
+        await updateAthlete(editingAthlete.id, data);
+        await refetchAthletes();
+      } else {
+        const created = await createAthlete(data);
+        await setActiveAthlete(created.id);
+      }
+      setAthleteModalVisible(false);
+    } catch {
+      Alert.alert('Error', 'Failed to save athlete. Please try again.');
+    }
   }
 
   async function handleSignOut() {
@@ -215,6 +274,82 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* Athletes section */}
+        <View style={styles.athletesCard}>
+          <View style={styles.athletesSectionHeader}>
+            <Ionicons name="people-outline" size={18} color={COLORS.accent} />
+            <Text style={styles.athletesSectionTitle}>Athletes</Text>
+          </View>
+
+          {athletes.map((athlete, index) => {
+            const initials = athlete.name
+              .split(' ')
+              .map((w) => w[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase();
+            const avatarColor = athlete.avatar_color ?? COLORS.accent;
+            const isActive = athlete.id === activeAthleteId;
+            return (
+              <React.Fragment key={athlete.id}>
+                {index > 0 && <View style={styles.athleteRowDivider} />}
+                <View style={styles.athleteRow}>
+                  <TouchableOpacity
+                    style={styles.athleteRowLeft}
+                    onPress={() => openAthleteModal(athlete)}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.athleteAvatar,
+                        { backgroundColor: `${avatarColor}26` },
+                        isActive && { borderColor: avatarColor, borderWidth: 2 },
+                      ]}
+                    >
+                      <Text style={[styles.athleteAvatarText, { color: avatarColor }]}>
+                        {initials}
+                      </Text>
+                    </View>
+                    <View style={styles.athleteInfo}>
+                      <Text style={styles.athleteName}>{athlete.name}</Text>
+                      <Text style={styles.athleteMeta}>
+                        {[athlete.sport, athlete.level, athlete.age_group]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={styles.athleteRowActions}>
+                    <TouchableOpacity
+                      style={styles.athleteActionBtn}
+                      onPress={() => openAthleteModal(athlete)}
+                    >
+                      <Ionicons name="pencil-outline" size={16} color={COLORS.muted} />
+                    </TouchableOpacity>
+                    {athletes.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.athleteActionBtn}
+                        onPress={() => handleDeleteAthlete(athlete)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </React.Fragment>
+            );
+          })}
+
+          <TouchableOpacity
+            style={styles.addAthleteButton}
+            onPress={() => openAthleteModal()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={COLORS.accent} />
+            <Text style={styles.addAthleteButtonText}>Add Athlete</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Settings sections */}
         <View style={styles.sectionCard}>
           <SettingsRow
@@ -278,6 +413,13 @@ export default function ProfileScreen() {
 
         <Text style={styles.version}>NextSport v1.0.0</Text>
       </ScrollView>
+
+      <AthleteModal
+        visible={athleteModalVisible}
+        athlete={editingAthlete}
+        onSave={handleAthleteModalSave}
+        onCancel={() => setAthleteModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -584,5 +726,91 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 12,
     textAlign: 'center',
+  },
+  // Athletes section
+  athletesCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16,
+    overflow: 'hidden',
+    padding: 16,
+  },
+  athletesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  athletesSectionTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  athleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  athleteRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  athleteAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  athleteAvatarText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  athleteInfo: {
+    flex: 1,
+  },
+  athleteName: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  athleteMeta: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  athleteRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  athleteActionBtn: {
+    padding: 6,
+  },
+  athleteRowDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 2,
+  },
+  addAthleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.3)',
+    backgroundColor: 'rgba(34,197,94,0.06)',
+    gap: 8,
+  },
+  addAthleteButtonText: {
+    color: COLORS.accent,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
