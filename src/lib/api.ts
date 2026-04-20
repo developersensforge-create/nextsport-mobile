@@ -270,3 +270,43 @@ export async function pollAnalysis(id: string, maxAttempts = 30): Promise<Analys
   logger.error(TAG, `pollAnalysis: TIMED OUT after ${maxAttempts} attempts`);
   throw new Error('Analysis timed out');
 }
+
+// ─── Athletes API ─────────────────────────────────────────────────────────────
+
+export interface Athlete {
+  id: string;
+  user_id: string;
+  name: string;
+  age_group: string | null;
+  level: string | null;
+  sport: string;
+  avatar_color: string | null;
+  created_at: string;
+}
+
+export async function getAthletes(): Promise<Athlete[]> {
+  logger.info(TAG, 'getAthletes: requesting /api/athletes');
+  const headers = await getAuthHeaders();
+  const response = await axios.get(`${BASE_URL}/api/athletes`, { headers });
+  return response.data || [];
+}
+
+export async function createAthlete(data: { name: string; age_group?: string; level?: string; sport?: string }): Promise<Athlete> {
+  logger.info(TAG, 'createAthlete: creating athlete', { name: data.name });
+  const headers = await getAuthHeaders();
+  const response = await axios.post(`${BASE_URL}/api/athletes`, data, { headers });
+  return response.data;
+}
+
+export async function updateAthlete(id: string, data: Partial<Athlete>): Promise<Athlete> {
+  logger.info(TAG, 'updateAthlete: updating athlete', { id });
+  const headers = await getAuthHeaders();
+  const response = await axios.put(`${BASE_URL}/api/athletes/${id}`, data, { headers });
+  return response.data;
+}
+
+export async function deleteAthlete(id: string): Promise<void> {
+  logger.info(TAG, 'deleteAthlete: deleting athlete', { id });
+  const headers = await getAuthHeaders();
+  await axios.delete(`${BASE_URL}/api/athletes/${id}`, { headers });
+}
