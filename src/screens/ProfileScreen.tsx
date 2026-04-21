@@ -203,77 +203,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsCard}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.tokens_remaining ?? '—'}</Text>
-            <Text style={styles.statLabel}>Tokens Left</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{formatResetDate(profile?.token_reset_date ?? null)}</Text>
-            <Text style={styles.statLabel}>Next Reset</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, isPremium && { color: '#f59e0b' }]}>
-              {isPremium ? 'Premium' : 'Free'}
-            </Text>
-            <Text style={styles.statLabel}>Plan</Text>
-          </View>
-        </View>
-
-        {/* Upgrade card (free users only) */}
-        {!isPremium && (
-          <TouchableOpacity style={styles.upgradeCard} onPress={handleUpgrade} activeOpacity={0.85}>
-            <View style={styles.upgradeLeft}>
-              <Text style={styles.upgradeTitle}>Go Premium</Text>
-              <Text style={styles.upgradeSubtitle}>
-                Unlimited tokens + advanced AI feedback
-              </Text>
-            </View>
-            <View style={styles.upgradeRight}>
-              <Text style={styles.upgradePrice}>$14.99</Text>
-              <Text style={styles.upgradePer}>/mo</Text>
-            </View>
-            <Ionicons name="arrow-forward" size={20} color="#000" style={{ marginLeft: 8 }} />
-          </TouchableOpacity>
-        )}
-
-        {/* Manage subscription (premium users) */}
-        {isPremium && (
-          <TouchableOpacity style={styles.manageCard} onPress={handleManageBilling} activeOpacity={0.85}>
-            <Ionicons name="card-outline" size={20} color={COLORS.accent} />
-            <Text style={styles.manageText}>Manage Subscription</Text>
-            <Ionicons name="open-outline" size={16} color={COLORS.muted} />
-          </TouchableOpacity>
-        )}
-
-        {/* Referral */}
-        {referral && (
-          <View style={styles.referralCard}>
-            <View style={styles.referralHeader}>
-              <Ionicons name="gift-outline" size={20} color={COLORS.accent} />
-              <Text style={styles.referralTitle}>Refer Friends</Text>
-            </View>
-            <Text style={styles.referralSubtitle}>
-              Share your code and earn bonus tokens for each friend who joins.
-            </Text>
-            <View style={styles.referralCodeRow}>
-              <View style={styles.codeBox}>
-                <Text style={styles.codeText}>{referral.referral_code}</Text>
-              </View>
-              <TouchableOpacity style={styles.shareCodeButton} onPress={handleShareReferral}>
-                <Ionicons name="share-social" size={18} color="#000" />
-                <Text style={styles.shareCodeText}>Share</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.referralCount}>
-              {referral.referred_count} friend{referral.referred_count !== 1 ? 's' : ''} referred
-            </Text>
-          </View>
-        )}
-
         {/* Athletes section */}
         <View style={styles.athletesCard}>
           <View style={styles.athletesSectionHeader}>
@@ -349,6 +278,79 @@ export default function ProfileScreen() {
             <Text style={styles.addAthleteButtonText}>Add Athlete</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Stats */}
+        <View style={styles.statsCard}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{profile?.tokens_remaining ?? '—'}</Text>
+            <Text style={styles.statLabel}>Tokens Left</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{formatResetDate(profile?.token_reset_date ?? null)}</Text>
+            <Text style={styles.statLabel}>Next Reset</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, isPremium && { color: '#f59e0b' }]}>
+              {isPremium ? 'Premium' : 'Free'}
+            </Text>
+            <Text style={styles.statLabel}>Plan</Text>
+          </View>
+        </View>
+
+        {/* Upgrade card (free users only) */}
+        {!isPremium && (
+          <TouchableOpacity style={styles.upgradeCard} onPress={handleUpgrade} activeOpacity={0.85}>
+            <View style={styles.upgradeLeft}>
+              <Text style={styles.upgradeTitle}>Go Premium</Text>
+              <Text style={styles.upgradeSubtitle}>
+                Unlimited tokens + advanced AI feedback
+              </Text>
+            </View>
+            <View style={styles.upgradeRight}>
+              <Text style={styles.upgradePrice}>$14.99</Text>
+              <Text style={styles.upgradePer}>/mo</Text>
+            </View>
+            <Ionicons name="arrow-forward" size={20} color="#000" style={{ marginLeft: 8 }} />
+          </TouchableOpacity>
+        )}
+
+        {/* Manage subscription (premium users) */}
+        {isPremium && (
+          <TouchableOpacity style={styles.manageCard} onPress={handleManageBilling} activeOpacity={0.85}>
+            <Ionicons name="card-outline" size={20} color={COLORS.accent} />
+            <Text style={styles.manageText}>Manage Subscription</Text>
+            <Ionicons name="open-outline" size={16} color={COLORS.muted} />
+          </TouchableOpacity>
+        )}
+
+        {/* Referral */}
+        {referral && (
+          <View style={styles.referralCard}>
+            <View style={styles.referralHeader}>
+              <Ionicons name="gift-outline" size={20} color={COLORS.accent} />
+              <Text style={styles.referralTitle}>Refer Friends</Text>
+            </View>
+            <Text style={styles.referralSubtitle}>
+              Share your code and earn bonus tokens for each friend who joins.
+            </Text>
+            <View style={styles.referralCodeRow}>
+              <View style={styles.codeBox}>
+                <Text style={styles.codeText}>{referral.referral_code}</Text>
+              </View>
+              <TouchableOpacity style={styles.shareCodeButton} onPress={handleShareReferral}>
+                <Ionicons name="share-social" size={18} color="#000" />
+                <Text style={styles.shareCodeText}>Share</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.referralCount}>
+              {referral.referred_count} friend{referral.referred_count !== 1 ? 's' : ''} referred
+            </Text>
+          </View>
+        )}
+
+
 
         {/* Settings sections */}
         <View style={styles.sectionCard}>
