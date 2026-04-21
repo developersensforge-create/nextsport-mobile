@@ -4,7 +4,7 @@ import { logger } from './logger';
 import { summarizeAnalysisForLog } from './analysisDebug';
 
 const TAG = 'API';
-const BASE_URL = 'https://nextsport-ruizhi1201s-projects.vercel.app';
+const BASE_URL = 'https://nextsport-sensforge.vercel.app';
 
 export async function getAuthHeaders() {
   logger.info(TAG, 'getAuthHeaders: fetching active session');
