@@ -56,7 +56,8 @@ export function useAthletes() {
       }
 
       setState({ athletes, activeAthleteId: validId, loading: false });
-    } catch {
+    } catch (err: any) {
+      console.error('[useAthletes] fetchAthletes error:', err?.message || err);
       setState((prev) => ({ ...prev, loading: false }));
     } finally {
       fetchInFlight.current = false;
