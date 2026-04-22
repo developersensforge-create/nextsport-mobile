@@ -158,54 +158,95 @@ export async function submitAnalysis(
     throw err;
   }
 
-  // ── Step 3: upload video to Supabase Storage via XHR ────────────────────
-  logger.info(TAG, 'submitAnalysis [3/4]: uploading video via XHR PUT');
-  await new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', videoMimeType);
+  // ── Step 3: upload video to Supabase Storage via XHR (with retry) ────────
+  const MAX_UPLOAD_ATTEMPTS = 3;
+  let lastUploadError: Error | null = null;
 
-    xhr.upload.onprogress = (event) => {
-      if (event.total) {
-        const pct = Math.round((event.loaded / event.total) * 100);
-        logger.info(TAG, `submitAnalysis [3/4]: upload progress ${pct}%`, {
-          loaded: event.loaded,
-          total: event.total,
-        });
-        const progress = 0.1 + (event.loaded / event.total) * 0.85;
-        onProgress?.(Math.min(progress, 0.95));
+  for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      const delayMs = attempt === 2 ? 2000 : 4000;
+      logger.info(TAG, `submitAnalysis [3/4]: retry attempt ${attempt}/${MAX_UPLOAD_ATTEMPTS} after ${delayMs}ms delay`);
+      await new Promise((r) => setTimeout(r, delayMs));
+
+      // Get a fresh signed URL for each retry (old one may have expired)
+      try {
+        const retryUrlResp = await axios.post(
+          `${BASE_URL}/api/analyze/upload-url`,
+          { fileName, contentType: videoMimeType },
+          { headers }
+        );
+        uploadUrl = retryUrlResp.data.uploadUrl;
+        filePath = retryUrlResp.data.filePath;
+        logger.info(TAG, `submitAnalysis [3/4]: got fresh upload URL for retry ${attempt}`);
+      } catch (err: any) {
+        logger.error(TAG, `submitAnalysis [3/4]: failed to get fresh URL for retry ${attempt}`, { message: err?.message });
+        lastUploadError = err;
+        continue;
       }
-    };
+    }
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        logger.info(TAG, `submitAnalysis [3/4]: upload completed — XHR status ${xhr.status}`);
-        resolve();
-      } else {
-        logger.error(TAG, `submitAnalysis [3/4]: upload FAILED — XHR status ${xhr.status}`, {
-          responseText: xhr.responseText?.slice(0, 500),
-        });
-        reject(new Error(`Upload failed with status ${xhr.status}`));
-      }
-    };
+    logger.info(TAG, `submitAnalysis [3/4]: uploading video via XHR PUT (attempt ${attempt}/${MAX_UPLOAD_ATTEMPTS})`);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', videoMimeType);
 
-    xhr.onerror = (e) => {
-      logger.error(TAG, 'submitAnalysis [3/4]: XHR network error', {
-        readyState: xhr.readyState,
-        status: xhr.status,
+        xhr.upload.onprogress = (event) => {
+          if (event.total) {
+            const pct = Math.round((event.loaded / event.total) * 100);
+            logger.info(TAG, `submitAnalysis [3/4]: upload progress ${pct}%`, {
+              loaded: event.loaded,
+              total: event.total,
+            });
+            const progress = 0.1 + (event.loaded / event.total) * 0.85;
+            onProgress?.(Math.min(progress, 0.95));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            logger.info(TAG, `submitAnalysis [3/4]: upload completed — XHR status ${xhr.status} (attempt ${attempt})`);
+            resolve();
+          } else {
+            logger.error(TAG, `submitAnalysis [3/4]: upload FAILED — XHR status ${xhr.status}`, {
+              responseText: xhr.responseText?.slice(0, 500),
+              attempt,
+            });
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          logger.error(TAG, 'submitAnalysis [3/4]: XHR network error', {
+            readyState: xhr.readyState,
+            status: xhr.status,
+            attempt,
+          });
+          reject(new Error('Network request failed during upload'));
+        };
+
+        xhr.ontimeout = () => {
+          logger.error(TAG, 'submitAnalysis [3/4]: XHR timeout during upload', { attempt });
+          reject(new Error('Upload timed out'));
+        };
+
+        logger.info(TAG, 'submitAnalysis [3/4]: calling xhr.send()', { videoUri, attempt });
+        xhr.send({ uri: videoUri, type: videoMimeType, name: 'swing.mp4' } as any);
       });
-      reject(new Error('Network request failed during upload'));
-    };
+      // Upload succeeded — break out of retry loop
+      lastUploadError = null;
+      break;
+    } catch (uploadErr: any) {
+      lastUploadError = uploadErr;
+      logger.warn(TAG, `submitAnalysis [3/4]: attempt ${attempt} failed — ${uploadErr?.message}`);
+    }
+  }
 
-    xhr.ontimeout = () => {
-      logger.error(TAG, 'submitAnalysis [3/4]: XHR timeout during upload');
-      reject(new Error('Upload timed out'));
-    };
-
-    // Send the local file via blob reference (Android/iOS compatible)
-    logger.info(TAG, 'submitAnalysis [3/4]: calling xhr.send()', { videoUri });
-    xhr.send({ uri: videoUri, type: videoMimeType, name: 'swing.mp4' } as any);
-  });
+  if (lastUploadError) {
+    logger.error(TAG, 'submitAnalysis [3/4]: all upload attempts failed', { message: lastUploadError.message });
+    throw lastUploadError;
+  }
 
   onProgress?.(0.97);
 
