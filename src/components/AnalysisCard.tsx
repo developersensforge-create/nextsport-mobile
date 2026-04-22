@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { Ionicons } from '@expo/vector-icons';
 import { Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -34,9 +35,10 @@ function getStatusLabel(status: Analysis['status']): string {
 
 export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCardProps) {
   const scoreColor = getScoreColor(analysis.score);
-  const [deleting, setDeleting] = useState(false);
+  const swipeableRef = useRef<Swipeable>(null);
 
   const handleDelete = () => {
+    swipeableRef.current?.close();
     Alert.alert(
       'Delete Analysis',
       'Are you sure you want to delete this analysis? This cannot be undone.',
@@ -45,21 +47,33 @@ export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCa
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setDeleting(true);
-            onDelete?.(analysis.id);
-          },
+          onPress: () => onDelete?.(analysis.id),
         },
       ]
     );
   };
 
-  return (
-    <TouchableOpacity
-      style={[styles.card, deleting && styles.cardDeleting]}
-      onPress={onPress}
-      activeOpacity={0.75}
-    >
+  const renderRightActions = (
+    _progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>
+  ) => {
+    const scale = dragX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [1, 0.7],
+      extrapolate: 'clamp',
+    });
+    return (
+      <TouchableOpacity style={styles.deleteAction} onPress={handleDelete} activeOpacity={0.85}>
+        <Animated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
+          <Ionicons name="trash-outline" size={22} color="#fff" />
+          <Text style={styles.deleteActionText}>Delete</Text>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
+
+  const card = (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
       <View style={styles.left}>
         <View style={[styles.scoreBadge, { borderColor: scoreColor }]}>
           {analysis.score !== null ? (
@@ -93,6 +107,19 @@ export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCa
       </View>
     </TouchableOpacity>
   );
+
+  // Always wrap in Swipeable — swipe-to-delete works regardless of edit mode
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={40}
+      overshootRight={false}
+      friction={2}
+    >
+      {card}
+    </Swipeable>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -105,9 +132,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-  },
-  cardDeleting: {
-    opacity: 0.4,
   },
   left: {
     marginRight: 14,
@@ -151,5 +175,19 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     padding: 4,
+  },
+  deleteAction: {
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    marginBottom: 10,
+    borderRadius: 14,
+  },
+  deleteActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
