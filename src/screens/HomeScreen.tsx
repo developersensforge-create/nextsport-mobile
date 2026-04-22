@@ -17,7 +17,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
 import { useAthletes } from '../hooks/useAthletes';
-import { getAnalyses, Analysis } from '../lib/api';
+import { getAnalyses, deleteAnalysis, Analysis } from '../lib/api';
 import { logger } from '../lib/logger';
 import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
@@ -46,6 +46,7 @@ export default function HomeScreen() {
   const [analysesLoading, setAnalysesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [addAthleteVisible, setAddAthleteVisible] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   // Guard against duplicate simultaneous fetches triggered by useFocusEffect re-fires
   const analysesFetchInFlight = useRef(false);
   // Track which athleteId was used for the last fetch so we can reload on change
@@ -99,6 +100,15 @@ export default function HomeScreen() {
       return;
     }
     navigation.navigate('Record', { mode: 'upload', athleteId: activeAthleteId ?? undefined });
+  }
+
+  async function handleDeleteAnalysis(id: string) {
+    try {
+      await deleteAnalysis(id);
+      setAnalyses(prev => prev.filter(a => a.id !== id));
+    } catch {
+      Alert.alert('Error', 'Failed to delete analysis. Please try again.');
+    }
   }
 
   const firstName = profile?.full_name?.split(' ')[0]
@@ -255,12 +265,19 @@ export default function HomeScreen() {
 
         {/* Recent Analyses */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Recent Analyses
-            {activeAthlete ? (
-              <Text style={styles.sectionSubtitle}> · {activeAthlete.name}</Text>
-            ) : null}
-          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              Recent Analyses
+              {activeAthlete ? (
+                <Text style={styles.sectionSubtitle}> · {activeAthlete.name}</Text>
+              ) : null}
+            </Text>
+            {analyses.length > 0 && (
+              <TouchableOpacity onPress={() => setEditMode(e => !e)}>
+                <Text style={styles.editToggle}>{editMode ? 'Done' : 'Edit'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {analysesLoading ? (
             <Text style={styles.emptyText}>Loading…</Text>
           ) : analyses.length === 0 ? (
@@ -275,6 +292,7 @@ export default function HomeScreen() {
                 key={a.id}
                 analysis={a}
                 onPress={() => {
+                  if (editMode) return;
                   logger.info('HomeScreen', 'navigate AnalysisResult from recent list', {
                     analysisId: a.id,
                     status: a.status,
@@ -282,6 +300,7 @@ export default function HomeScreen() {
                   });
                   navigation.navigate('AnalysisResult', { analysisId: a.id });
                 }}
+                onDelete={editMode ? handleDeleteAnalysis : undefined}
               />
             ))
           )}
@@ -499,16 +518,26 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 4,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   sectionTitle: {
     color: COLORS.text,
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: 12,
   },
   sectionSubtitle: {
     color: COLORS.muted,
     fontSize: 14,
     fontWeight: '400',
+  },
+  editToggle: {
+    color: COLORS.accent,
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyCard: {
     backgroundColor: COLORS.card,

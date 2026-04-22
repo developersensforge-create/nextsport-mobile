@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -7,6 +7,7 @@ import { COLORS } from '../theme';
 interface AnalysisCardProps {
   analysis: Analysis;
   onPress: () => void;
+  onDelete?: (id: string) => void;
 }
 
 function getScoreColor(score: number | null): string {
@@ -31,11 +32,34 @@ function getStatusLabel(status: Analysis['status']): string {
   }
 }
 
-export default function AnalysisCard({ analysis, onPress }: AnalysisCardProps) {
+export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCardProps) {
   const scoreColor = getScoreColor(analysis.score);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Analysis',
+      'Are you sure you want to delete this analysis? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setDeleting(true);
+            onDelete?.(analysis.id);
+          },
+        },
+      ]
+    );
+  };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity
+      style={[styles.card, deleting && styles.cardDeleting]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
       <View style={styles.left}>
         <View style={[styles.scoreBadge, { borderColor: scoreColor }]}>
           {analysis.score !== null ? (
@@ -55,7 +79,17 @@ export default function AnalysisCard({ analysis, onPress }: AnalysisCardProps) {
         ) : null}
       </View>
       <View style={styles.right}>
-        <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
+        {onDelete ? (
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={handleDelete}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+          </TouchableOpacity>
+        ) : (
+          <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -71,6 +105,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
+  },
+  cardDeleting: {
+    opacity: 0.4,
   },
   left: {
     marginRight: 14,
@@ -109,5 +146,10 @@ const styles = StyleSheet.create({
   },
   right: {
     marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtn: {
+    padding: 4,
   },
 });

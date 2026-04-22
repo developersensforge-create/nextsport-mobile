@@ -353,3 +353,10 @@ export async function deleteAthlete(id: string): Promise<void> {
   const headers = await getAuthHeaders();
   await axios.delete(`${BASE_URL}/api/athletes/${id}`, { headers });
 }
+
+export async function deleteAnalysis(id: string): Promise<void> {
+  logger.info(TAG, 'deleteAnalysis: deleting analysis', { id });
+  const headers = await getAuthHeaders();
+  await axios.delete(`${BASE_URL}/api/analyses/${id}`, { headers });
+  logger.info(TAG, 'deleteAnalysis: deleted', { id });
+}
