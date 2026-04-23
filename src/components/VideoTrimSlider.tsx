@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,17 +38,23 @@ export default function VideoTrimSlider({
 }: VideoTrimSliderProps) {
   const trackWidth = useRef(0);
 
-  // Convert time → x position within track
-  const timeToX = useCallback(
-    (t: number) => (t / duration) * trackWidth.current,
-    [duration]
-  );
+  // Use refs for callbacks and live values so PanResponder closures always see latest
+  const onStartChangeRef = useRef(onStartChange);
+  const onEndChangeRef = useRef(onEndChange);
+  const startTimeRef = useRef(startTime);
+  const endTimeRef = useRef(endTime);
+  const durationRef = useRef(duration);
+  const minClipRef = useRef(minClip);
 
-  // Convert x position → clamped time
-  const xToTime = useCallback(
-    (x: number) => Math.max(0, Math.min(duration, (x / trackWidth.current) * duration)),
-    [duration]
-  );
+  useEffect(() => { onStartChangeRef.current = onStartChange; }, [onStartChange]);
+  useEffect(() => { onEndChangeRef.current = onEndChange; }, [onEndChange]);
+  useEffect(() => { startTimeRef.current = startTime; }, [startTime]);
+  useEffect(() => { endTimeRef.current = endTime; }, [endTime]);
+  useEffect(() => { durationRef.current = duration; }, [duration]);
+  useEffect(() => { minClipRef.current = minClip; }, [minClip]);
+
+  const timeToX = (t: number) => (t / durationRef.current) * trackWidth.current;
+  const xToTime = (x: number) => Math.max(0, Math.min(durationRef.current, (x / trackWidth.current) * durationRef.current));
 
   // Start thumb pan
   const startX = useRef(0);
@@ -57,14 +63,13 @@ export default function VideoTrimSlider({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        startX.current = timeToX(startTime);
+        startX.current = timeToX(startTimeRef.current);
       },
       onPanResponderMove: (_e, gs) => {
         const newX = startX.current + gs.dx;
         let newTime = xToTime(newX);
-        // Clamp: must be >= 0 and leave minClip before endTime
-        newTime = Math.max(0, Math.min(newTime, endTime - minClip));
-        onStartChange(parseFloat(newTime.toFixed(1)));
+        newTime = Math.max(0, Math.min(newTime, endTimeRef.current - minClipRef.current));
+        onStartChangeRef.current(parseFloat(newTime.toFixed(1)));
       },
     })
   ).current;
@@ -76,14 +81,13 @@ export default function VideoTrimSlider({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        endX.current = timeToX(endTime);
+        endX.current = timeToX(endTimeRef.current);
       },
       onPanResponderMove: (_e, gs) => {
         const newX = endX.current + gs.dx;
         let newTime = xToTime(newX);
-        // Clamp: must be <= duration and minClip after startTime
-        newTime = Math.min(duration, Math.max(newTime, startTime + minClip));
-        onEndChange(parseFloat(newTime.toFixed(1)));
+        newTime = Math.min(durationRef.current, Math.max(newTime, startTimeRef.current + minClipRef.current));
+        onEndChangeRef.current(parseFloat(newTime.toFixed(1)));
       },
     })
   ).current;

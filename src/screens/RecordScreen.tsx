@@ -53,19 +53,16 @@ async function materializeAndroidVideoForPreview(uri: string, mimeType: string |
 }
 
 function SelectedVideoPreview({
-  url,
+  player,
   onError,
 }: {
-  url: string;
+  player: ReturnType<typeof useVideoPlayer>;
   onError: () => void;
 }) {
   const VideoViewComponent = VideoView as unknown as React.ComponentType<any>;
-  const player = useVideoPlayer(url, (videoPlayer) => {
-    videoPlayer.loop = false;
-  });
 
   useEffect(() => {
-    const subscription = player.addListener('statusChange', ({ error }) => {
+    const subscription = player.addListener('statusChange', ({ error }: any) => {
       if (error) {
         onError();
       }
@@ -104,6 +101,11 @@ export default function RecordScreen() {
   const [previewPlayable, setPreviewPlayable] = useState(true);
   const [trimStart, setTrimStart] = useState<number>(0);
   const [trimEnd, setTrimEnd] = useState<number | null>(null); // null until duration known
+
+  // Lifted video player — allows seeking from trim slider
+  const videoPlayer = useVideoPlayer(videoUri ?? '', (p) => {
+    p.loop = false;
+  });
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
@@ -572,7 +574,7 @@ export default function RecordScreen() {
         <View style={styles.videoPreviewContainer}>
           {previewPlayable ? (
             <SelectedVideoPreview
-              url={videoUri}
+              player={videoPlayer}
               onError={() => {
                 logger.error(TAG, 'Selected preview video failed to load', {
                   uriPrefix: videoUri.slice(0, 80),
@@ -607,8 +609,22 @@ export default function RecordScreen() {
                 duration={videoDurationMs / 1000}
                 startTime={trimStart}
                 endTime={trimEnd ?? videoDurationMs / 1000}
-                onStartChange={setTrimStart}
-                onEndChange={setTrimEnd}
+                onStartChange={(t) => {
+                  setTrimStart(t);
+                  // Pause and seek preview to start thumb position
+                  try {
+                    videoPlayer.pause();
+                    videoPlayer.currentTime = t;
+                  } catch {}
+                }}
+                onEndChange={(t) => {
+                  setTrimEnd(t);
+                  // Seek preview to end thumb position so user sees that frame
+                  try {
+                    videoPlayer.pause();
+                    videoPlayer.currentTime = t;
+                  } catch {}
+                }}
                 minClip={2}
               />
             </View>
