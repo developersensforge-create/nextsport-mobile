@@ -4,22 +4,21 @@ import {
   Text,
   StyleSheet,
   PanResponder,
-  Animated,
   LayoutChangeEvent,
 } from 'react-native';
 import { COLORS } from '../theme';
 
 interface VideoTrimSliderProps {
-  duration: number; // total video duration in seconds
+  duration: number;
   startTime: number;
   endTime: number;
   onStartChange: (t: number) => void;
   onEndChange: (t: number) => void;
-  minClip?: number; // minimum clip length in seconds (default 2)
+  minClip?: number;
 }
 
-const THUMB_SIZE = 24;
-const TRACK_HEIGHT = 4;
+const THUMB_SIZE = 36;      // bigger = easier to grab
+const TRACK_HEIGHT = 6;
 const MIN_CLIP_DEFAULT = 2;
 
 function formatSec(s: number) {
@@ -38,56 +37,60 @@ export default function VideoTrimSlider({
 }: VideoTrimSliderProps) {
   const trackWidth = useRef(0);
 
-  // Use refs for callbacks and live values so PanResponder closures always see latest
-  const onStartChangeRef = useRef(onStartChange);
-  const onEndChangeRef = useRef(onEndChange);
-  const startTimeRef = useRef(startTime);
-  const endTimeRef = useRef(endTime);
-  const durationRef = useRef(duration);
-  const minClipRef = useRef(minClip);
+  // Refs so PanResponder closures always see latest values
+  const onStartRef = useRef(onStartChange);
+  const onEndRef = useRef(onEndChange);
+  const startRef = useRef(startTime);
+  const endRef = useRef(endTime);
+  const durRef = useRef(duration);
+  const minRef = useRef(minClip);
 
-  useEffect(() => { onStartChangeRef.current = onStartChange; }, [onStartChange]);
-  useEffect(() => { onEndChangeRef.current = onEndChange; }, [onEndChange]);
-  useEffect(() => { startTimeRef.current = startTime; }, [startTime]);
-  useEffect(() => { endTimeRef.current = endTime; }, [endTime]);
-  useEffect(() => { durationRef.current = duration; }, [duration]);
-  useEffect(() => { minClipRef.current = minClip; }, [minClip]);
+  useEffect(() => { onStartRef.current = onStartChange; }, [onStartChange]);
+  useEffect(() => { onEndRef.current = onEndChange; }, [onEndChange]);
+  useEffect(() => { startRef.current = startTime; }, [startTime]);
+  useEffect(() => { endRef.current = endTime; }, [endTime]);
+  useEffect(() => { durRef.current = duration; }, [duration]);
+  useEffect(() => { minRef.current = minClip; }, [minClip]);
 
-  const timeToX = (t: number) => (t / durationRef.current) * trackWidth.current;
-  const xToTime = (x: number) => Math.max(0, Math.min(durationRef.current, (x / trackWidth.current) * durationRef.current));
+  const timeToX = (t: number) => (t / durRef.current) * trackWidth.current;
+  const xToTime = (x: number) =>
+    Math.max(0, Math.min(durRef.current, (x / trackWidth.current) * durRef.current));
 
-  // Start thumb pan
-  const startX = useRef(0);
+  // ── Start thumb ──────────────────────────────────────────────────────────
+  const startDragX = useRef(0);
   const startPan = useRef(
     PanResponder.create({
+      // Capture immediately so ScrollView / card TouchableOpacity can't steal
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderGrant: () => {
-        startX.current = timeToX(startTimeRef.current);
+        startDragX.current = timeToX(startRef.current);
       },
       onPanResponderMove: (_e, gs) => {
-        const newX = startX.current + gs.dx;
-        let newTime = xToTime(newX);
-        newTime = Math.max(0, Math.min(newTime, endTimeRef.current - minClipRef.current));
-        onStartChangeRef.current(parseFloat(newTime.toFixed(1)));
+        let t = xToTime(startDragX.current + gs.dx);
+        t = Math.max(0, Math.min(t, endRef.current - minRef.current));
+        onStartRef.current(parseFloat(t.toFixed(1)));
       },
     })
   ).current;
 
-  // End thumb pan
-  const endX = useRef(0);
+  // ── End thumb ────────────────────────────────────────────────────────────
+  const endDragX = useRef(0);
   const endPan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderGrant: () => {
-        endX.current = timeToX(endTimeRef.current);
+        endDragX.current = timeToX(endRef.current);
       },
       onPanResponderMove: (_e, gs) => {
-        const newX = endX.current + gs.dx;
-        let newTime = xToTime(newX);
-        newTime = Math.min(durationRef.current, Math.max(newTime, startTimeRef.current + minClipRef.current));
-        onEndChangeRef.current(parseFloat(newTime.toFixed(1)));
+        let t = xToTime(endDragX.current + gs.dx);
+        t = Math.min(durRef.current, Math.max(t, startRef.current + minRef.current));
+        onEndRef.current(parseFloat(t.toFixed(1)));
       },
     })
   ).current;
@@ -100,46 +103,54 @@ export default function VideoTrimSlider({
   const endPct = duration > 0 ? endTime / duration : 1;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.labelRow}>
-        <Text style={styles.labelText}>Trim: {formatSec(startTime)} → {formatSec(endTime)}</Text>
+    // pointerEvents="box-none" lets touches pass through the wrapper but
+    // the thumbs themselves capture their own touches
+    <View style={styles.container} pointerEvents="box-none">
+      <View style={styles.labelRow} pointerEvents="none">
+        <Text style={styles.labelText}>
+          Trim: {formatSec(startTime)} → {formatSec(endTime)}
+        </Text>
         <Text style={styles.durationText}>{formatSec(endTime - startTime)} selected</Text>
       </View>
 
-      {/* Track area */}
-      <View style={styles.trackWrapper} onLayout={onTrackLayout}>
-        {/* Full track (grey) */}
-        <View style={styles.track} />
+      {/* Track + thumbs */}
+      <View style={styles.trackWrapper} onLayout={onTrackLayout} pointerEvents="box-none">
+        {/* Background track */}
+        <View style={styles.track} pointerEvents="none" />
 
-        {/* Selected range (orange) */}
+        {/* Selected range */}
         <View
           style={[
             styles.selectedRange,
-            {
-              left: `${startPct * 100}%`,
-              right: `${(1 - endPct) * 100}%`,
-            },
+            { left: `${startPct * 100}%`, right: `${(1 - endPct) * 100}%` },
           ]}
+          pointerEvents="none"
         />
 
-        {/* Start thumb */}
+        {/* Start thumb — large hit area */}
         <View
-          style={[styles.thumb, styles.thumbStart, { left: `${startPct * 100}%` }]}
+          style={[styles.thumbHitArea, { left: `${startPct * 100}%` }]}
           {...startPan.panHandlers}
         >
-          <View style={styles.thumbInner} />
+          <View style={styles.thumb}>
+            <View style={styles.thumbBar} />
+            <View style={styles.thumbBar} />
+          </View>
         </View>
 
-        {/* End thumb */}
+        {/* End thumb — large hit area */}
         <View
-          style={[styles.thumb, styles.thumbEnd, { left: `${endPct * 100}%` }]}
+          style={[styles.thumbHitArea, { left: `${endPct * 100}%` }]}
           {...endPan.panHandlers}
         >
-          <View style={styles.thumbInner} />
+          <View style={styles.thumb}>
+            <View style={styles.thumbBar} />
+            <View style={styles.thumbBar} />
+          </View>
         </View>
       </View>
 
-      <View style={styles.tickRow}>
+      <View style={styles.tickRow} pointerEvents="none">
         <Text style={styles.tickText}>0s</Text>
         <Text style={styles.tickText}>{formatSec(duration / 2)}</Text>
         <Text style={styles.tickText}>{formatSec(duration)}</Text>
@@ -156,7 +167,7 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   labelText: {
     color: COLORS.text,
@@ -169,7 +180,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   trackWrapper: {
-    height: THUMB_SIZE + 8,
+    height: THUMB_SIZE + 16,
     justifyContent: 'center',
     position: 'relative',
   },
@@ -187,38 +198,41 @@ const styles = StyleSheet.create({
     borderRadius: TRACK_HEIGHT / 2,
     backgroundColor: COLORS.accent,
   },
-  thumb: {
+  // Large invisible hit area centered on the thumb position
+  thumbHitArea: {
     position: 'absolute',
+    width: THUMB_SIZE + 20,
+    height: THUMB_SIZE + 20,
+    marginLeft: -((THUMB_SIZE + 20) / 2),
+    marginTop: -((THUMB_SIZE + 20) / 2 - TRACK_HEIGHT / 2),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumb: {
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    flexDirection: 'row',
+    gap: 3,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    // Center vertically on track
-    marginTop: -(THUMB_SIZE / 2) + TRACK_HEIGHT / 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
   },
-  thumbStart: {
-    marginLeft: -(THUMB_SIZE / 2),
-  },
-  thumbEnd: {
-    marginLeft: -(THUMB_SIZE / 2),
-  },
-  thumbInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  thumbBar: {
+    width: 2.5,
+    height: 12,
+    borderRadius: 2,
     backgroundColor: COLORS.accent,
   },
   tickRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 6,
+    marginTop: 8,
   },
   tickText: {
     color: COLORS.muted,

@@ -300,7 +300,8 @@ export default function HomeScreen() {
                   });
                   navigation.navigate('AnalysisResult', { analysisId: a.id });
                 }}
-                onDelete={editMode ? handleDeleteAnalysis : undefined}
+                onDelete={handleDeleteAnalysis}
+                showDeleteIcon={editMode}
               />
             ))
           )}

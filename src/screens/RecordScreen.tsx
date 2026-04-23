@@ -604,7 +604,7 @@ export default function RecordScreen() {
 
           {/* Trim slider — only show when duration is known and > 4s */}
           {videoDurationMs && videoDurationMs > 4000 && (
-            <View style={styles.trimContainer}>
+            <View style={styles.trimContainer} onStartShouldSetResponder={() => true}>
               <VideoTrimSlider
                 duration={videoDurationMs / 1000}
                 startTime={trimStart}

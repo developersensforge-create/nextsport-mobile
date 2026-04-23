@@ -9,6 +9,7 @@ interface AnalysisCardProps {
   analysis: Analysis;
   onPress: () => void;
   onDelete?: (id: string) => void;
+  showDeleteIcon?: boolean; // show trash icon inline (edit mode)
 }
 
 function getScoreColor(score: number | null): string {
@@ -33,7 +34,7 @@ function getStatusLabel(status: Analysis['status']): string {
   }
 }
 
-export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCardProps) {
+export default function AnalysisCard({ analysis, onPress, onDelete, showDeleteIcon }: AnalysisCardProps) {
   const scoreColor = getScoreColor(analysis.score);
   const swipeableRef = useRef<Swipeable>(null);
 
@@ -93,7 +94,7 @@ export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCa
         ) : null}
       </View>
       <View style={styles.right}>
-        {onDelete ? (
+        {showDeleteIcon ? (
           <TouchableOpacity
             style={styles.deleteBtn}
             onPress={handleDelete}
@@ -108,11 +109,10 @@ export default function AnalysisCard({ analysis, onPress, onDelete }: AnalysisCa
     </TouchableOpacity>
   );
 
-  // Always wrap in Swipeable — swipe-to-delete works regardless of edit mode
   return (
     <Swipeable
       ref={swipeableRef}
-      renderRightActions={renderRightActions}
+      renderRightActions={onDelete ? renderRightActions : undefined}
       rightThreshold={40}
       overshootRight={false}
       friction={2}
