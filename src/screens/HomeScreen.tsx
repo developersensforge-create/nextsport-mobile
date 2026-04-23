@@ -51,13 +51,17 @@ export default function HomeScreen() {
   const analysesFetchInFlight = useRef(false);
   // Track which athleteId was used for the last fetch so we can reload on change
   const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
+  // Tombstone set: IDs deleted this session — filtered out of every fetch so they never reappear
+  const deletedIds = useRef<Set<string>>(new Set());
 
   async function loadAnalyses(forAthleteId?: string) {
     if (analysesFetchInFlight.current) return;
     analysesFetchInFlight.current = true;
     try {
       const data = await getAnalyses(forAthleteId ?? undefined);
-      setAnalyses(data.slice(0, 5));
+      // Filter out any IDs already deleted this session (prevents reappearance after Alert/focus)
+      const filtered = data.filter(a => !deletedIds.current.has(a.id));
+      setAnalyses(filtered.slice(0, 5));
       lastFetchedAthleteId.current = forAthleteId;
     } catch {
       // silently fail on load — show empty state
@@ -103,10 +107,16 @@ export default function HomeScreen() {
   }
 
   async function handleDeleteAnalysis(id: string) {
+    // Add to tombstone immediately — prevents refetch from restoring it
+    deletedIds.current.add(id);
+    // Optimistic removal from UI
+    setAnalyses(prev => prev.filter(a => a.id !== id));
     try {
       await deleteAnalysis(id);
-      setAnalyses(prev => prev.filter(a => a.id !== id));
-    } catch {
+    } catch (err) {
+      // Rollback: remove from tombstone and reload
+      deletedIds.current.delete(id);
+      await loadAnalyses(activeAthleteId ?? undefined);
       Alert.alert('Error', 'Failed to delete analysis. Please try again.');
     }
   }
