@@ -108,6 +108,8 @@ export async function submitAnalysis(
   onProgress?: (progress: number) => void,
   durationSeconds?: number,
   athleteId?: string,
+  trimStart?: number,
+  trimEnd?: number,
 ): Promise<SubmitAnalysisResponse> {
   logger.info(TAG, '=== submitAnalysis: START ===', {
     videoUri,
@@ -261,7 +263,13 @@ export async function submitAnalysis(
   try {
     analyzeResp = await axios.post(
       `${BASE_URL}/api/analyze`,
-      { videoPath: filePath, duration: durationSeconds ?? 15, ...(athleteId ? { athleteId } : {}) },
+      {
+        videoPath: filePath,
+        duration: durationSeconds ?? 15,
+        ...(athleteId ? { athleteId } : {}),
+        ...(trimStart !== undefined ? { trimStart } : {}),
+        ...(trimEnd !== undefined ? { trimEnd } : {}),
+      },
       { headers: { ...headers, 'Content-Type': 'application/json' }, timeout: 120000 }
     );
     const analysisSummary = summarizeAnalysisForLog(analyzeResp.data);

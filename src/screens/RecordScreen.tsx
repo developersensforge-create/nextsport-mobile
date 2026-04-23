@@ -23,6 +23,7 @@ import * as Sharing from 'expo-sharing';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { submitAnalysis } from '../lib/api';
 import { summarizeAnalysisForLog } from '../lib/analysisDebug';
+import VideoTrimSlider from '../components/VideoTrimSlider';
 import { logger } from '../lib/logger';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
@@ -101,6 +102,8 @@ export default function RecordScreen() {
   const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
   const [previewPlayable, setPreviewPlayable] = useState(true);
+  const [trimStart, setTrimStart] = useState<number>(0);
+  const [trimEnd, setTrimEnd] = useState<number | null>(null); // null until duration known
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
@@ -317,6 +320,10 @@ export default function RecordScreen() {
       setVideoMime(asset.mimeType ?? 'video/mp4');
       setVideoDurationMs(asset.duration ?? null);
       setVideoSizeBytes(resolvedSizeBytes);
+      // Reset trim to full video
+      const durationSec = asset.duration ? asset.duration / 1000 : 0;
+      setTrimStart(0);
+      setTrimEnd(durationSec > 0 ? durationSec : null);
     }
   }
 
@@ -355,10 +362,14 @@ export default function RecordScreen() {
 
     try {
       logger.info(TAG, 'handleAnalyze: calling submitAnalysis()');
+      const durationSec = videoDurationMs ? videoDurationMs / 1000 : 0;
+      const effectiveTrimEnd = trimEnd ?? durationSec;
+      const hasTrim = trimStart > 0 || (effectiveTrimEnd > 0 && effectiveTrimEnd < durationSec - 0.5);
+      logger.info(TAG, 'handleAnalyze: trim', { trimStart, trimEnd: effectiveTrimEnd, hasTrim });
       const result = await submitAnalysis(videoUri, videoMime, (progress) => {
         // Cap at 95% during upload — the last 5% is server-side handoff
         setUploadProgress(Math.min(progress, 0.95));
-      }, undefined, athleteId);
+      }, undefined, athleteId, hasTrim ? trimStart : undefined, hasTrim ? effectiveTrimEnd : undefined);
 
       logger.info(TAG, 'handleAnalyze: submitAnalysis() returned', {
         analysisId: result?.analysisId ?? result?.id ?? null,
@@ -485,6 +496,8 @@ export default function RecordScreen() {
     setVideoSizeBytes(null);
     setPreviewPlayable(true);
     setUploadProgress(0);
+    setTrimStart(0);
+    setTrimEnd(null);
   }
 
   async function openSystemPreview() {
@@ -586,6 +599,21 @@ export default function RecordScreen() {
           <Text style={styles.previewFooterMetaText}>
             Selected: {formatDuration(videoDurationMs)} • {formatBytes(videoSizeBytes)}
           </Text>
+
+          {/* Trim slider — only show when duration is known and > 4s */}
+          {videoDurationMs && videoDurationMs > 4000 && (
+            <View style={styles.trimContainer}>
+              <VideoTrimSlider
+                duration={videoDurationMs / 1000}
+                startTime={trimStart}
+                endTime={trimEnd ?? videoDurationMs / 1000}
+                onStartChange={setTrimStart}
+                onEndChange={setTrimEnd}
+                minClip={2}
+              />
+            </View>
+          )}
+
           <View style={styles.tokenRow}>
             <Ionicons name="flash" size={16} color={COLORS.accent} />
             <Text style={styles.tokenText}>This analysis costs {TOKEN_COST} tokens</Text>
@@ -820,6 +848,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 12,
     textAlign: 'center',
+  },
+  trimContainer: {
+    marginBottom: 14,
+    paddingHorizontal: 4,
   },
   previewOpenButton: {
     marginTop: 16,
