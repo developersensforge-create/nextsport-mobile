@@ -103,9 +103,7 @@ export default function VideoTrimSlider({
   const endPct = duration > 0 ? endTime / duration : 1;
 
   return (
-    // pointerEvents="box-none" lets touches pass through the wrapper but
-    // the thumbs themselves capture their own touches
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={styles.container}>
       <View style={styles.labelRow} pointerEvents="none">
         <Text style={styles.labelText}>
           Trim: {formatSec(startTime)} → {formatSec(endTime)}
@@ -113,8 +111,13 @@ export default function VideoTrimSlider({
         <Text style={styles.durationText}>{formatSec(endTime - startTime)} selected</Text>
       </View>
 
-      {/* Track + thumbs */}
-      <View style={styles.trackWrapper} onLayout={onTrackLayout} pointerEvents="box-none">
+      {/* Track + thumbs — absorbs ALL touches so nothing leaks to navigation */}
+      <View
+        style={styles.trackWrapper}
+        onLayout={onTrackLayout}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={() => {}}
+      >
         {/* Background track */}
         <View style={styles.track} pointerEvents="none" />
 
