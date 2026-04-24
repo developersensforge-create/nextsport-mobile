@@ -22,12 +22,38 @@ import { logger } from '../lib/logger';
 import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
 import AthleteModal from '../components/AthleteModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
+const DELETED_IDS_KEY = 'nextsport_deleted_analysis_ids';
+
 // Module-level tombstone — persists across re-renders and focus cycles
-// IDs here are filtered from every fetch until the app fully restarts
 const _deletedAnalysisIds = new Set<string>();
+
+// Load persisted deleted IDs from storage on startup
+AsyncStorage.getItem(DELETED_IDS_KEY).then(val => {
+  if (val) {
+    try {
+      const ids: string[] = JSON.parse(val);
+      ids.forEach(id => _deletedAnalysisIds.add(id));
+    } catch {}
+  }
+}).catch(() => {});
+
+async function persistDeletedId(id: string) {
+  _deletedAnalysisIds.add(id);
+  try {
+    await AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(_deletedAnalysisIds)));
+  } catch {}
+}
+
+async function unpersistDeletedId(id: string) {
+  _deletedAnalysisIds.delete(id);
+  try {
+    await AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(_deletedAnalysisIds)));
+  } catch {}
+}
 
 type HomeNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
@@ -111,15 +137,14 @@ export default function HomeScreen() {
   }
 
   async function handleDeleteAnalysis(id: string) {
-    // Add to tombstone immediately — prevents refetch from restoring it
-    deletedIds.current.add(id);
-    // Optimistic removal from UI
+    // Optimistic UI removal
     setAnalyses(prev => prev.filter(a => a.id !== id));
     try {
       await deleteAnalysis(id);
+      // Only persist tombstone after server confirms deletion
+      await persistDeletedId(id);
     } catch (err) {
-      // Rollback: remove from tombstone and reload
-      deletedIds.current.delete(id);
+      // Server delete failed — restore the card
       await loadAnalyses(activeAthleteId ?? undefined);
       Alert.alert('Error', 'Failed to delete analysis. Please try again.');
     }

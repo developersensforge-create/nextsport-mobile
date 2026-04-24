@@ -365,6 +365,16 @@ export async function deleteAthlete(id: string): Promise<void> {
 export async function deleteAnalysis(id: string): Promise<void> {
   logger.info(TAG, 'deleteAnalysis: deleting analysis', { id });
   const headers = await getAuthHeaders();
-  await axios.delete(`${BASE_URL}/api/analyses/${id}`, { headers });
-  logger.info(TAG, 'deleteAnalysis: deleted', { id });
+  try {
+    const resp = await axios.delete(`${BASE_URL}/api/analyses/${id}`, { headers });
+    logger.info(TAG, 'deleteAnalysis: server confirmed delete', { id, status: resp.status });
+  } catch (err: any) {
+    logger.error(TAG, 'deleteAnalysis: FAILED', {
+      id,
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    throw err;
+  }
 }
