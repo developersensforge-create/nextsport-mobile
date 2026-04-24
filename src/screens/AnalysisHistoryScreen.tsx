@@ -19,6 +19,7 @@ import AnalysisCard from '../components/AnalysisCard';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { deletedAnalysisIds as _deletedAnalysisIds, persistDeletedId } from '../lib/deletedAnalyses';
+import { logger } from '../lib/logger';
 
 type HistoryNavProp = StackNavigationProp<RootStackParamList>;
 
@@ -35,13 +36,32 @@ export default function AnalysisHistoryScreen() {
   const [hasMore, setHasMore] = useState(true);
   const offsetRef = useRef(0);
   const fetchInFlight = useRef(false);
+  const useUnfilteredFallbackRef = useRef(false);
 
   const fetchPage = useCallback(async (reset = false) => {
     if (fetchInFlight.current) return;
     fetchInFlight.current = true;
     const offset = reset ? 0 : offsetRef.current;
     try {
-      const data = await getAnalyses(activeAthleteId ?? undefined, offset, PAGE_SIZE);
+      let effectiveAthleteId = useUnfilteredFallbackRef.current ? undefined : activeAthleteId ?? undefined;
+      let data = await getAnalyses(effectiveAthleteId, offset, PAGE_SIZE);
+
+      if (reset) {
+        useUnfilteredFallbackRef.current = false;
+        if (activeAthleteId && data.length === 0) {
+          const allData = await getAnalyses(undefined, 0, PAGE_SIZE);
+          if (allData.length > 0) {
+            logger.warn('AnalysisHistoryScreen', 'fetchPage: athlete-scoped list empty, falling back to unfiltered analyses', {
+              athleteId: activeAthleteId,
+              fallbackCount: allData.length,
+            });
+            data = allData;
+            effectiveAthleteId = undefined;
+            useUnfilteredFallbackRef.current = true;
+          }
+        }
+      }
+
       // Prune stale tombstone: if server still returns the ID, delete was never committed
       if (reset) {
         const serverIds = new Set(data.map(a => a.id));

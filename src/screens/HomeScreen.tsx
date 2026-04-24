@@ -32,7 +32,7 @@ type HomeNavProp = CompositeNavigationProp<
 
 // Module-level cache — survives screen unmount/remount on Android stack navigation
 let _cachedPool: Analysis[] = [];
-let _cachedAthleteId: string | null | undefined = undefined;
+let _cachedScopeKey: string | undefined = undefined;
 let _hasFetched = false;
 
 export default function HomeScreen() {
@@ -59,15 +59,41 @@ export default function HomeScreen() {
     setAnalyses(_cachedPool.slice(0, 5));
   }
 
+  function getScopeKey(athleteId?: string, usedFallback = false) {
+    if (!athleteId) return 'all';
+    return usedFallback ? `fallback:${athleteId}` : `athlete:${athleteId}`;
+  }
+
+  function cacheMatchesCurrentAthlete(athleteId?: string | null) {
+    if (!athleteId) return _cachedScopeKey === 'all';
+    return (
+      _cachedScopeKey === `athlete:${athleteId}` ||
+      _cachedScopeKey === `fallback:${athleteId}`
+    );
+  }
+
   async function loadAnalyses(forAthleteId?: string, force = false) {
     if (analysesFetchInFlight.current) return;
-    const athleteChanged = _cachedAthleteId !== (forAthleteId ?? null);
+    const targetScopeKey = getScopeKey(forAthleteId);
+    const athleteChanged = _cachedScopeKey !== targetScopeKey && _cachedScopeKey !== getScopeKey(forAthleteId, true);
     if (!force && _hasFetched && !athleteChanged) return;
     analysesFetchInFlight.current = true;
     try {
-      const data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
+      let data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
+      let usedFallback = false;
+      if (forAthleteId && data.length === 0) {
+        const allData = await getAnalyses(undefined, 0, 50);
+        if (allData.length > 0) {
+          logger.warn('HomeScreen', 'loadAnalyses: athlete-scoped list empty, falling back to unfiltered analyses', {
+            athleteId: forAthleteId,
+            fallbackCount: allData.length,
+          });
+          data = allData;
+          usedFallback = true;
+        }
+      }
       _cachedPool = data;
-      _cachedAthleteId = forAthleteId ?? null;
+      _cachedScopeKey = getScopeKey(forAthleteId, usedFallback);
       _hasFetched = true;
       setAnalyses(data.slice(0, 5));
     } catch {
@@ -88,7 +114,7 @@ export default function HomeScreen() {
       const currentAthleteKey = activeAthleteId ?? null;
 
       // Only restore cache when it matches the currently active athlete context.
-      if (_hasFetched && _cachedAthleteId === currentAthleteKey) {
+      if (_hasFetched && cacheMatchesCurrentAthlete(currentAthleteKey)) {
         setAnalyses(_cachedPool.slice(0, 5));
         setAnalysesLoading(false);
       }
