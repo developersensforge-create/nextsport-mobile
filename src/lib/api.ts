@@ -76,8 +76,12 @@ export async function getProfile(): Promise<Profile> {
   return profileData;
 }
 
-export async function getAnalyses(athleteId?: string): Promise<Analysis[]> {
-  const params = athleteId ? `?athlete_id=${athleteId}` : '';
+export async function getAnalyses(athleteId?: string, offset = 0, limit = 50): Promise<Analysis[]> {
+  const qs = new URLSearchParams();
+  if (athleteId) qs.set('athlete_id', athleteId);
+  if (offset > 0) qs.set('offset', String(offset));
+  if (limit !== 50) qs.set('limit', String(limit));
+  const params = qs.toString() ? `?${qs.toString()}` : '';
   logger.info(TAG, `getAnalyses: requesting /api/analyses${params}`);
   const headers = await getAuthHeaders();
   const response = await axios.get(`${BASE_URL}/api/analyses${params}`, { headers });

@@ -22,38 +22,9 @@ import { logger } from '../lib/logger';
 import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
 import AthleteModal from '../components/AthleteModal';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { deletedAnalysisIds as _deletedAnalysisIds, persistDeletedId } from '../lib/deletedAnalyses';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
-
-const DELETED_IDS_KEY = 'nextsport_deleted_analysis_ids';
-
-// Module-level tombstone — persists across re-renders and focus cycles
-const _deletedAnalysisIds = new Set<string>();
-
-// Load persisted deleted IDs from storage on startup
-AsyncStorage.getItem(DELETED_IDS_KEY).then(val => {
-  if (val) {
-    try {
-      const ids: string[] = JSON.parse(val);
-      ids.forEach(id => _deletedAnalysisIds.add(id));
-    } catch {}
-  }
-}).catch(() => {});
-
-async function persistDeletedId(id: string) {
-  _deletedAnalysisIds.add(id);
-  try {
-    await AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(_deletedAnalysisIds)));
-  } catch {}
-}
-
-async function unpersistDeletedId(id: string) {
-  _deletedAnalysisIds.delete(id);
-  try {
-    await AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(_deletedAnalysisIds)));
-  } catch {}
-}
 
 type HomeNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
@@ -81,16 +52,25 @@ export default function HomeScreen() {
   const analysesFetchInFlight = useRef(false);
   // Track which athleteId was used for the last fetch so we can reload on change
   const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
-  // Use module-level tombstone so it survives re-renders and focus cycles
-  const deletedIds = { current: _deletedAnalysisIds };
+  // Full pool of fetched analyses — used to refill Home slots after delete
+  const allAnalysesPool = useRef<Analysis[]>([]);
+
+
+  function applyPoolToHome() {
+    const visible = allAnalysesPool.current
+      .filter(a => !_deletedAnalysisIds.has(a.id))
+      .slice(0, 5);
+    setAnalyses(visible);
+  }
 
   async function loadAnalyses(forAthleteId?: string) {
     if (analysesFetchInFlight.current) return;
     analysesFetchInFlight.current = true;
     try {
-      const data = await getAnalyses(forAthleteId ?? undefined);
-      // Filter out any IDs already deleted this session (prevents reappearance after Alert/focus)
-      const filtered = data.filter(a => !deletedIds.current.has(a.id));
+      const data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
+      // Filter out tombstoned IDs
+      const filtered = data.filter(a => !_deletedAnalysisIds.has(a.id));
+      allAnalysesPool.current = filtered;
       setAnalyses(filtered.slice(0, 5));
       lastFetchedAthleteId.current = forAthleteId;
     } catch {
@@ -137,14 +117,15 @@ export default function HomeScreen() {
   }
 
   async function handleDeleteAnalysis(id: string) {
-    // Optimistic UI removal
-    setAnalyses(prev => prev.filter(a => a.id !== id));
+    // Optimistic: remove from pool and refill home slots from remaining
+    allAnalysesPool.current = allAnalysesPool.current.filter(a => a.id !== id);
+    applyPoolToHome();
     try {
       await deleteAnalysis(id);
-      // Only persist tombstone after server confirms deletion
+      // Server confirmed — persist tombstone so it survives app restart
       await persistDeletedId(id);
     } catch (err) {
-      // Server delete failed — restore the card
+      // Server delete failed — restore from a fresh fetch
       await loadAnalyses(activeAthleteId ?? undefined);
       Alert.alert('Error', 'Failed to delete analysis. Please try again.');
     }
@@ -311,11 +292,16 @@ export default function HomeScreen() {
                 <Text style={styles.sectionSubtitle}> · {activeAthlete.name}</Text>
               ) : null}
             </Text>
-            {analyses.length > 0 && (
-              <TouchableOpacity onPress={() => setEditMode(e => !e)}>
-                <Text style={styles.editToggle}>{editMode ? 'Done' : 'Edit'}</Text>
+            <View style={styles.sectionActions}>
+              {analyses.length > 0 && (
+                <TouchableOpacity onPress={() => setEditMode(e => !e)} style={styles.sectionActionBtn}>
+                  <Text style={styles.editToggle}>{editMode ? 'Done' : 'Edit'}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => navigation.navigate('AnalysisHistory')} style={styles.sectionActionBtn}>
+                <Text style={styles.viewAllToggle}>View All</Text>
               </TouchableOpacity>
-            )}
+            </View>
           </View>
           {analysesLoading ? (
             <Text style={styles.emptyText}>Loading…</Text>
@@ -574,10 +560,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
   },
+  sectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sectionActionBtn: {
+    paddingVertical: 2,
+  },
   editToggle: {
     color: COLORS.accent,
     fontSize: 14,
     fontWeight: '600',
+  },
+  viewAllToggle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    fontWeight: '500',
   },
   emptyCard: {
     backgroundColor: COLORS.card,
