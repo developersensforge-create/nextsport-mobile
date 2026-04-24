@@ -8,11 +8,30 @@ import {
   FlatList,
   Modal,
   Pressable,
-  Linking,
-  Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { WebView } from 'react-native-webview';
+
+function extractYouTubeId(url: string): string | null {
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function getYouTubeThumbnail(url: string): string | null {
+  const id = extractYouTubeId(url);
+  return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
+}
+
+function getYouTubeEmbedUrl(url: string, startTime?: number): string | null {
+  const id = extractYouTubeId(url);
+  if (!id) return null;
+  // Parse start time from URL (e.g. ?t=20 or &t=149)
+  const tMatch = url.match(/[?&]t=(\d+)/);
+  const t = tMatch ? parseInt(tMatch[1]) : (startTime ?? 0);
+  return `https://www.youtube.com/embed/${id}?start=${t}&autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+}
 import { COLORS } from '../theme';
 import {
   DRILLS,
@@ -36,14 +55,7 @@ export default function DrillsScreen() {
     return topicOk && lvlOk;
   });
 
-  async function handleWatchVideo(url: string) {
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      await Linking.openURL(url);
-    } else {
-      Alert.alert('Cannot open link', 'Please check your YouTube app is installed.');
-    }
-  }
+  const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -128,9 +140,17 @@ export default function DrillsScreen() {
             onPress={() => setSelectedDrill(item)}
             activeOpacity={0.82}
           >
-            <View style={[styles.iconBox, { backgroundColor: TOPIC_COLORS[item.topic] + '18' }]}>
-              <Ionicons name={item.icon as any} size={22} color={TOPIC_COLORS[item.topic]} />
-            </View>
+            {item.referenceVideo && getYouTubeThumbnail(item.referenceVideo.url) ? (
+              <Image
+                source={{ uri: getYouTubeThumbnail(item.referenceVideo.url)! }}
+                style={styles.cardThumb}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.iconBox, { backgroundColor: TOPIC_COLORS[item.topic] + '18' }]}>
+                <Ionicons name={item.icon as any} size={22} color={TOPIC_COLORS[item.topic]} />
+              </View>
+            )}
             <View style={styles.cardBody}>
               <View style={styles.cardTopRow}>
                 <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
@@ -229,19 +249,23 @@ export default function DrillsScreen() {
                   )}
                 </View>
 
-                {/* Reference Video — shown first, directly tappable */}
+                {/* Reference Video — inline YouTube player */}
                 {selectedDrill.referenceVideo && (
-                  <TouchableOpacity
-                    style={styles.videoCardDirect}
-                    onPress={() => handleWatchVideo(selectedDrill.referenceVideo!.url)}
-                    activeOpacity={0.82}
-                  >
-                    <View style={styles.videoThumbPlaceholder}>
-                      <Ionicons name="logo-youtube" size={36} color="#ff0000" />
-                      <View style={styles.playOverlay}>
-                        <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
+                  <View style={styles.videoCardDirect}>
+                    {getYouTubeEmbedUrl(selectedDrill.referenceVideo.url) ? (
+                      <WebView
+                        style={styles.videoWebView}
+                        source={{ uri: getYouTubeEmbedUrl(selectedDrill.referenceVideo.url)! }}
+                        allowsFullscreenVideo
+                        javaScriptEnabled
+                        mediaPlaybackRequiresUserAction={false}
+                        scrollEnabled={false}
+                      />
+                    ) : (
+                      <View style={styles.videoThumbPlaceholder}>
+                        <Ionicons name="logo-youtube" size={36} color="#ff0000" />
                       </View>
-                    </View>
+                    )}
                     <View style={styles.videoDirectInfo}>
                       <Text style={styles.videoTitle} numberOfLines={2}>
                         {selectedDrill.referenceVideo.title}
@@ -250,8 +274,11 @@ export default function DrillsScreen() {
                       {selectedDrill.referenceVideo.note && (
                         <Text style={styles.videoNote}>⏱ {selectedDrill.referenceVideo.note}</Text>
                       )}
+                      <Text style={styles.videoCitation} numberOfLines={3}>
+                        {selectedDrill.referenceVideo.creator}. {new Date().getFullYear()}. <Text style={{ fontStyle: 'italic' }}>{selectedDrill.referenceVideo.title}</Text> [Video]. YouTube. {selectedDrill.referenceVideo.url.split('?')[0]}
+                      </Text>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 )}
 
                 {/* Drill Focus */}
@@ -366,6 +393,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cardThumb: {
+    width: 64,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#111',
+  },
   cardBody: { flex: 1, gap: 4 },
   cardTopRow: {
     flexDirection: 'row',
@@ -444,17 +477,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  videoWebView: {
+    height: 210,
+    backgroundColor: '#000',
+  },
   videoThumbPlaceholder: {
-    height: 160,
+    height: 210,
     backgroundColor: '#111',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playOverlay: {
-    position: 'absolute',
-  },
   videoDirectInfo: {
     padding: 12,
+  },
+  videoCitation: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 8,
+    lineHeight: 14,
+    opacity: 0.7,
   },
   bulletCard: {
     backgroundColor: COLORS.card,
