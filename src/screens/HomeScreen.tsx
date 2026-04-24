@@ -79,12 +79,13 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // If we have a cached pool, show it immediately before any fetch
-      if (_hasFetched && _cachedPool.length > 0) {
+      // Restore whatever we have cached immediately, including an empty list,
+      // then revalidate on focus so Home doesn't get stuck with cleared stale state.
+      if (_hasFetched) {
         setAnalyses(_cachedPool.slice(0, 5));
         setAnalysesLoading(false);
       }
-      loadAnalyses(activeAthleteId ?? undefined);
+      loadAnalyses(activeAthleteId ?? undefined, true);
       refetchProfile();
     }, [refetchProfile, activeAthleteId])
   );
