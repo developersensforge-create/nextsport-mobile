@@ -43,6 +43,7 @@ export default function HomeScreen() {
     athletes,
     activeAthlete,
     activeAthleteId,
+    loading: athletesLoading,
     setActiveAthlete,
     createAthlete,
   } = useAthletes();
@@ -79,15 +80,21 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Restore whatever we have cached immediately, including an empty list,
-      // then revalidate on focus so Home doesn't get stuck with cleared stale state.
-      if (_hasFetched) {
+      if (athletesLoading) {
+        setAnalysesLoading(true);
+        return;
+      }
+
+      const currentAthleteKey = activeAthleteId ?? null;
+
+      // Only restore cache when it matches the currently active athlete context.
+      if (_hasFetched && _cachedAthleteId === currentAthleteKey) {
         setAnalyses(_cachedPool.slice(0, 5));
         setAnalysesLoading(false);
       }
       loadAnalyses(activeAthleteId ?? undefined, true);
       refetchProfile();
-    }, [refetchProfile, activeAthleteId])
+    }, [refetchProfile, activeAthleteId, athletesLoading])
   );
 
   async function onRefresh() {
