@@ -47,14 +47,12 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [addAthleteVisible, setAddAthleteVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  // Guard against duplicate simultaneous fetches triggered by useFocusEffect re-fires
+  // Guard against duplicate simultaneous fetches
   const analysesFetchInFlight = useRef(false);
-  // Track which athleteId was used for the last fetch so we can reload on change
+  // Track which athleteId was used for the last fetch so we can reload on athlete change
   const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
-  // Timestamp of last successful fetch — throttle focus refetches to 30s
-  const lastFetchTime = useRef<number>(0);
-  // Flag set during delete — prevents focus refetch from overwriting UI
-  const deleteInProgress = useRef(false);
+  // Whether initial fetch has completed at least once
+  const hasFetched = useRef(false);
   // Full pool of fetched analyses — used to refill Home slots after delete
   const allAnalysesPool = useRef<Analysis[]>([]);
 
@@ -64,25 +62,25 @@ export default function HomeScreen() {
 
   async function loadAnalyses(forAthleteId?: string, force = false) {
     if (analysesFetchInFlight.current) return;
-    if (deleteInProgress.current) return; // never clobber during delete
-    const now = Date.now();
-    // Throttle: skip if same athlete fetched <30s ago, unless forced
-    if (!force && lastFetchedAthleteId.current === (forAthleteId ?? null) && now - lastFetchTime.current < 30000) return;
+    // Only re-fetch if: forced (pull-to-refresh), athlete changed, or first load
+    const athleteChanged = lastFetchedAthleteId.current !== (forAthleteId ?? null);
+    if (!force && hasFetched.current && !athleteChanged) return;
     analysesFetchInFlight.current = true;
     try {
       const data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
       allAnalysesPool.current = data;
       setAnalyses(data.slice(0, 5));
       lastFetchedAthleteId.current = forAthleteId ?? null;
-      lastFetchTime.current = Date.now();
+      hasFetched.current = true;
     } catch {
-      // silently fail on load — show empty state
+      // silently fail
     } finally {
       setAnalysesLoading(false);
       analysesFetchInFlight.current = false;
     }
   }
 
+  // Run on focus — but loadAnalyses internally skips if already fetched for this athlete
   useFocusEffect(
     useCallback(() => {
       loadAnalyses(activeAthleteId ?? undefined);
@@ -92,6 +90,7 @@ export default function HomeScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
+    hasFetched.current = false; // force a fresh fetch
     await Promise.all([loadAnalyses(activeAthleteId ?? undefined, true), refetchProfile()]);
     setRefreshing(false);
   }
@@ -99,7 +98,8 @@ export default function HomeScreen() {
   async function handleAthleteSwitch(id: string) {
     await setActiveAthlete(id);
     setAnalysesLoading(true);
-    await loadAnalyses(id);
+    hasFetched.current = false; // athlete changed — force refetch
+    await loadAnalyses(id, true);
   }
 
   function handleRecord() {
@@ -119,22 +119,16 @@ export default function HomeScreen() {
   }
 
   async function handleDeleteAnalysis(id: string) {
-    deleteInProgress.current = true;
     // Optimistic: remove from pool and refill home from remaining
     allAnalysesPool.current = allAnalysesPool.current.filter(a => a.id !== id);
     applyPoolToHome();
     try {
       await deleteAnalysis(id);
-      // Invalidate fetch cache so next focus/refresh gets fresh data
-      lastFetchTime.current = 0;
     } catch (err) {
-      // Server delete failed — restore the item to pool
-      allAnalysesPool.current = [...allAnalysesPool.current, { id } as any];
-      lastFetchTime.current = 0;
-      applyPoolToHome();
+      // Server delete failed — force a fresh fetch to restore correct state
+      hasFetched.current = false;
+      await loadAnalyses(activeAthleteId ?? undefined, true);
       Alert.alert('Error', 'Failed to delete analysis. Please try again.');
-    } finally {
-      deleteInProgress.current = false;
     }
   }
 
