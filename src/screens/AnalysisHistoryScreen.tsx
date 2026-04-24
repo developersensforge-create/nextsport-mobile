@@ -42,6 +42,13 @@ export default function AnalysisHistoryScreen() {
     const offset = reset ? 0 : offsetRef.current;
     try {
       const data = await getAnalyses(activeAthleteId ?? undefined, offset, PAGE_SIZE);
+      // Prune stale tombstone: if server still returns the ID, delete was never committed
+      if (reset) {
+        const serverIds = new Set(data.map(a => a.id));
+        for (const id of Array.from(_deletedAnalysisIds)) {
+          if (serverIds.has(id)) _deletedAnalysisIds.delete(id);
+        }
+      }
       const filtered = data.filter(a => !_deletedAnalysisIds.has(a.id));
       if (reset) {
         setAnalyses(filtered);
