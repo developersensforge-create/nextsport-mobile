@@ -22,7 +22,6 @@ import { logger } from '../lib/logger';
 import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
 import AthleteModal from '../components/AthleteModal';
-import { deletedAnalysisIds as _deletedAnalysisIds, persistDeletedId } from '../lib/deletedAnalyses';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
@@ -52,34 +51,30 @@ export default function HomeScreen() {
   const analysesFetchInFlight = useRef(false);
   // Track which athleteId was used for the last fetch so we can reload on change
   const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
+  // Timestamp of last successful fetch — throttle focus refetches to 30s
+  const lastFetchTime = useRef<number>(0);
+  // Flag set during delete — prevents focus refetch from overwriting UI
+  const deleteInProgress = useRef(false);
   // Full pool of fetched analyses — used to refill Home slots after delete
   const allAnalysesPool = useRef<Analysis[]>([]);
 
-
   function applyPoolToHome() {
-    const visible = allAnalysesPool.current
-      .filter(a => !_deletedAnalysisIds.has(a.id))
-      .slice(0, 5);
-    setAnalyses(visible);
+    setAnalyses(allAnalysesPool.current.slice(0, 5));
   }
 
-  async function loadAnalyses(forAthleteId?: string) {
+  async function loadAnalyses(forAthleteId?: string, force = false) {
     if (analysesFetchInFlight.current) return;
+    if (deleteInProgress.current) return; // never clobber during delete
+    const now = Date.now();
+    // Throttle: skip if same athlete fetched <30s ago, unless forced
+    if (!force && lastFetchedAthleteId.current === (forAthleteId ?? null) && now - lastFetchTime.current < 30000) return;
     analysesFetchInFlight.current = true;
     try {
       const data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
-      // Prune stale tombstone entries: if server still returns an ID it means the delete
-      // never actually succeeded (stale tombstone from a previous failed session).
-      // Remove those so valid records aren't permanently hidden.
-      const serverIds = new Set(data.map(a => a.id));
-      for (const id of Array.from(_deletedAnalysisIds)) {
-        if (serverIds.has(id)) _deletedAnalysisIds.delete(id);
-      }
-      // Filter out any remaining tombstoned IDs (just-deleted, not yet gone from server)
-      const filtered = data.filter(a => !_deletedAnalysisIds.has(a.id));
-      allAnalysesPool.current = filtered;
-      setAnalyses(filtered.slice(0, 5));
-      lastFetchedAthleteId.current = forAthleteId;
+      allAnalysesPool.current = data;
+      setAnalyses(data.slice(0, 5));
+      lastFetchedAthleteId.current = forAthleteId ?? null;
+      lastFetchTime.current = Date.now();
     } catch {
       // silently fail on load — show empty state
     } finally {
@@ -97,7 +92,7 @@ export default function HomeScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([loadAnalyses(activeAthleteId ?? undefined), refetchProfile()]);
+    await Promise.all([loadAnalyses(activeAthleteId ?? undefined, true), refetchProfile()]);
     setRefreshing(false);
   }
 
@@ -124,17 +119,22 @@ export default function HomeScreen() {
   }
 
   async function handleDeleteAnalysis(id: string) {
-    // Optimistic: remove from pool and refill home slots from remaining
+    deleteInProgress.current = true;
+    // Optimistic: remove from pool and refill home from remaining
     allAnalysesPool.current = allAnalysesPool.current.filter(a => a.id !== id);
     applyPoolToHome();
     try {
       await deleteAnalysis(id);
-      // Server confirmed — persist tombstone so it survives app restart
-      await persistDeletedId(id);
+      // Invalidate fetch cache so next focus/refresh gets fresh data
+      lastFetchTime.current = 0;
     } catch (err) {
-      // Server delete failed — restore from a fresh fetch
-      await loadAnalyses(activeAthleteId ?? undefined);
+      // Server delete failed — restore the item to pool
+      allAnalysesPool.current = [...allAnalysesPool.current, { id } as any];
+      lastFetchTime.current = 0;
+      applyPoolToHome();
       Alert.alert('Error', 'Failed to delete analysis. Please try again.');
+    } finally {
+      deleteInProgress.current = false;
     }
   }
 
