@@ -22,6 +22,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "developer@sensforge.com",
+        "ascAppId": "6762205769",
+        "appleTeamId": "58BKXDS287"
+      }
+    }
   }
 }
