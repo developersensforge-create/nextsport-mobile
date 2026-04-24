@@ -26,7 +26,7 @@ const PAGE_SIZE = 20;
 
 export default function AnalysisHistoryScreen() {
   const navigation = useNavigation<HistoryNavProp>();
-  const { activeAthleteId } = useAthletes();
+  const { activeAthleteId, loading: athletesLoading } = useAthletes();
 
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,8 +69,9 @@ export default function AnalysisHistoryScreen() {
   }, [activeAthleteId]);
 
   React.useEffect(() => {
+    if (athletesLoading) return;
     fetchPage(true);
-  }, [fetchPage]);
+  }, [fetchPage, athletesLoading]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -114,7 +115,7 @@ export default function AnalysisHistoryScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      {loading ? (
+      {loading || athletesLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={COLORS.accent} size="large" />
         </View>
