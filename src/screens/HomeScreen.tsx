@@ -30,6 +30,11 @@ type HomeNavProp = CompositeNavigationProp<
   StackNavigationProp<RootStackParamList>
 >;
 
+// Module-level cache — survives screen unmount/remount on Android stack navigation
+let _cachedPool: Analysis[] = [];
+let _cachedAthleteId: string | null | undefined = undefined;
+let _hasFetched = false;
+
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNavProp>();
   const { user } = useAuth();
@@ -47,42 +52,38 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [addAthleteVisible, setAddAthleteVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  // Guard against duplicate simultaneous fetches
   const analysesFetchInFlight = useRef(false);
-  // Track which athleteId was used for the last fetch so we can reload on athlete change
-  const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
-  // Whether initial fetch has completed at least once
-  const hasFetched = useRef(false);
-  // Full pool of fetched analyses — used to refill Home slots after delete
-  const allAnalysesPool = useRef<Analysis[]>([]);
 
   function applyPoolToHome() {
-    setAnalyses(allAnalysesPool.current.slice(0, 5));
+    setAnalyses(_cachedPool.slice(0, 5));
   }
 
   async function loadAnalyses(forAthleteId?: string, force = false) {
     if (analysesFetchInFlight.current) return;
-    // Only re-fetch if: forced (pull-to-refresh), athlete changed, or first load
-    const athleteChanged = lastFetchedAthleteId.current !== (forAthleteId ?? null);
-    if (!force && hasFetched.current && !athleteChanged) return;
+    const athleteChanged = _cachedAthleteId !== (forAthleteId ?? null);
+    if (!force && _hasFetched && !athleteChanged) return;
     analysesFetchInFlight.current = true;
     try {
       const data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
-      allAnalysesPool.current = data;
+      _cachedPool = data;
+      _cachedAthleteId = forAthleteId ?? null;
+      _hasFetched = true;
       setAnalyses(data.slice(0, 5));
-      lastFetchedAthleteId.current = forAthleteId ?? null;
-      hasFetched.current = true;
     } catch {
-      // silently fail
+      // silently fail — keep existing pool
     } finally {
       setAnalysesLoading(false);
       analysesFetchInFlight.current = false;
     }
   }
 
-  // Run on focus — but loadAnalyses internally skips if already fetched for this athlete
   useFocusEffect(
     useCallback(() => {
+      // If we have a cached pool, show it immediately before any fetch
+      if (_hasFetched && _cachedPool.length > 0) {
+        setAnalyses(_cachedPool.slice(0, 5));
+        setAnalysesLoading(false);
+      }
       loadAnalyses(activeAthleteId ?? undefined);
       refetchProfile();
     }, [refetchProfile, activeAthleteId])
@@ -90,7 +91,6 @@ export default function HomeScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    hasFetched.current = false; // force a fresh fetch
     await Promise.all([loadAnalyses(activeAthleteId ?? undefined, true), refetchProfile()]);
     setRefreshing(false);
   }
@@ -98,7 +98,6 @@ export default function HomeScreen() {
   async function handleAthleteSwitch(id: string) {
     await setActiveAthlete(id);
     setAnalysesLoading(true);
-    hasFetched.current = false; // athlete changed — force refetch
     await loadAnalyses(id, true);
   }
 
@@ -120,13 +119,12 @@ export default function HomeScreen() {
 
   async function handleDeleteAnalysis(id: string) {
     // Optimistic: remove from pool and refill home from remaining
-    allAnalysesPool.current = allAnalysesPool.current.filter(a => a.id !== id);
+    _cachedPool = _cachedPool.filter(a => a.id !== id);
     applyPoolToHome();
     try {
       await deleteAnalysis(id);
     } catch (err) {
       // Server delete failed — force a fresh fetch to restore correct state
-      hasFetched.current = false;
       await loadAnalyses(activeAthleteId ?? undefined, true);
       Alert.alert('Error', 'Failed to delete analysis. Please try again.');
     }
