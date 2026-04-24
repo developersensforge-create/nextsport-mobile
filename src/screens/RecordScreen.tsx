@@ -102,6 +102,11 @@ export default function RecordScreen() {
   const [trimStart, setTrimStart] = useState<number>(0);
   const [trimEnd, setTrimEnd] = useState<number | null>(null); // null until duration known
 
+  // Disable swipe-back gesture when video is loaded — prevents timeline touch from triggering nav
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !videoUri });
+  }, [navigation, videoUri]);
+
   // Lifted video player — allows seeking from trim slider
   const videoPlayer = useVideoPlayer(videoUri ?? '', (p) => {
     p.loop = false;

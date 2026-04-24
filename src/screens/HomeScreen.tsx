@@ -25,6 +25,10 @@ import AthleteModal from '../components/AthleteModal';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
+// Module-level tombstone — persists across re-renders and focus cycles
+// IDs here are filtered from every fetch until the app fully restarts
+const _deletedAnalysisIds = new Set<string>();
+
 type HomeNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
   StackNavigationProp<RootStackParamList>
@@ -51,8 +55,8 @@ export default function HomeScreen() {
   const analysesFetchInFlight = useRef(false);
   // Track which athleteId was used for the last fetch so we can reload on change
   const lastFetchedAthleteId = useRef<string | null | undefined>(undefined);
-  // Tombstone set: IDs deleted this session — filtered out of every fetch so they never reappear
-  const deletedIds = useRef<Set<string>>(new Set());
+  // Use module-level tombstone so it survives re-renders and focus cycles
+  const deletedIds = { current: _deletedAnalysisIds };
 
   async function loadAnalyses(forAthleteId?: string) {
     if (analysesFetchInFlight.current) return;
