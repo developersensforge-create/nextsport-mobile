@@ -15,7 +15,7 @@ export interface ReferenceVideo {
   url: string;
   title: string;
   creator: string;
-  note?: string; // e.g. "Watch 0:20 – 1:41"
+  note?: string;
 }
 
 export interface Drill {
@@ -56,10 +56,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Imagine you\'re about to catch a basketball — that alert, coiled feeling is exactly the stance you want.',
     referenceVideo: {
-      url: 'https://www.youtube.com/watch?v=OnwcYS4fa7Y',
-      title: 'How to Improve Your Batting Stance & Setup',
-      creator: 'AntonelliBaseball',
-      note: 'Watch 0:00 – 2:00 — covers feet width, knee bend, and bat angle',
+      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      title: 'Great Connection Ball Hitting Drill',
+      creator: 'TheBullpenTraining',
+      note: 'Full video — covers stance, connection, and swing fundamentals',
     },
   },
   {
@@ -82,10 +82,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The stride should be quiet and controlled — no lunging. Think "step to hit," not "step then hit."',
     referenceVideo: {
-      url: 'https://youtu.be/Z9G6GJJBk2E',
-      title: 'How to Improve Your Batting Stance & Setup',
-      creator: 'AntonelliBaseball',
-      note: 'Watch 2:00 – 3:30 — stride and weight transfer section',
+      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      title: 'Great Connection Ball Hitting Drill',
+      creator: 'TheBullpenTraining',
+      note: 'Full video — focus on the stride and weight transfer sections',
     },
   },
 
@@ -137,7 +137,7 @@ export const DRILLS: Drill[] = [
     coachTip: 'Place your hand on your back hip before swinging. Feel it push forward first — that\'s the sequence you\'re training.',
     referenceVideo: {
       url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
-      title: 'Tee Drill for Hip Drive and Power',
+      title: 'Great Connection Ball Hitting Drill',
       creator: 'TheBullpenTraining',
       note: 'Full video — focuses on hip-first swing sequence',
     },
@@ -162,7 +162,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Go lighter than you think — the goal is speed of rotation, not fighting the band.',
     referenceVideo: {
-      url: 'https://youtu.be/8TmxfFGSh5M',
+      url: 'https://youtu.be/VAk5WHHd26s?si=Xi9jpGtI6Vayo3z7&t=46',
       title: 'Resistance Band Exercises | Hitting Done Right',
       creator: 'Hitting Done Right - HDR',
       note: 'Watch 0:46 – 2:20 — focuses on rotating before the swing',
@@ -216,10 +216,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Casting (letting the arms fly away) is the #1 cause of weak contact. This drill exposes it immediately.',
     referenceVideo: {
-      url: 'https://youtu.be/w-rZGXMb2dI',
+      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
       title: 'Great Connection Ball Hitting Drill',
       creator: 'TheBullpenTraining',
-      note: 'Full video demonstration',
+      note: 'Full video — demonstrates the stay-connected swing concept',
     },
   },
   {
@@ -242,10 +242,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Most hitters are too top-hand dominant. The bottom hand is the guide — the top hand is the finisher.',
     referenceVideo: {
-      url: 'https://youtu.be/f7d9lxSTJDs',
+      url: 'https://youtu.be/CPzMopFu95M?si=Sys4zD8W4xaxvHs9&t=20',
       title: 'Top 5 PVC Hitting Drills - At Home Baseball Drills',
       creator: 'Northern Baseball Training',
-      note: 'Watch 0:20 – 1:41 — one-hand bat path isolation techniques',
+      note: 'Watch 0:20 – 1:41 — one-hand and bat path isolation techniques',
     },
   },
 
@@ -298,10 +298,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Inside → out front. Middle → even with hip. Outside → slightly behind hip. This is the contact point triangle.',
     referenceVideo: {
-      url: 'https://youtu.be/hpMFCnmLYqA',
-      title: 'Tee Zone Work — Contact Point Basics',
+      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
+      title: 'Great Connection Ball Hitting Drill',
       creator: 'TheBullpenTraining',
-      note: 'Full video — demonstrates tee placement for different pitch zones',
+      note: 'Full video — demonstrates tee contact and staying connected through different zones',
     },
   },
 
@@ -326,7 +326,7 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'A good finish is proof of a good swing. If your finish is off-balance or your arms are bent awkwardly, work backward to find the breakdown.',
     referenceVideo: {
-      url: 'https://youtu.be/G5RtQ8IHTuo',
+      url: 'https://youtu.be/r9fs-HGCZTs?si=nRNK09svz3WK0Cjx&t=149',
       title: 'Medicine Ball Drills to Increase Bat Speed and Power',
       creator: 'AntonelliBaseball',
       note: 'Watch 2:29 – 3:10 — extension and finish position focus',
@@ -383,7 +383,7 @@ export const DRILLS: Drill[] = [
       url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
       title: 'Top 3 At Home Infield Drills',
       creator: 'NorthernBaseballTraining',
-      note: 'Watch from start — 0:02 mark',
+      note: 'Watch 0:00 – 0:02 — straight-up ground ball footwork',
     },
   },
   {
@@ -406,10 +406,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The backhand is all about the crossover step. If your first step is wrong, the play is over before it starts.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/4HL2J3gUSCQ',
+      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
       title: 'Top 3 At Home Infield Drills',
       creator: 'NorthernBaseballTraining',
-      note: 'Watch 0:02 – 0:05 mark (backhand segment)',
+      note: 'Watch 0:02 – 0:05 — backhand footwork and fielding technique',
     },
   },
   {
@@ -432,10 +432,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'On the forehand, you\'re almost always fielding on the run. Train your body to field and redirect in one smooth motion.',
     referenceVideo: {
-      url: 'https://youtu.be/zrSRMqHCp7A',
+      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
       title: 'Top 3 At Home Infield Drills',
       creator: 'NorthernBaseballTraining',
-      note: 'Watch 0:06 – 0:09 mark (forehand segment)',
+      note: 'Watch 0:06 – 0:09 — forehand reach and transfer technique',
     },
   },
 
