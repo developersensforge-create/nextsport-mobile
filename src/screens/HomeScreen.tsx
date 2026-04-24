@@ -68,7 +68,13 @@ export default function HomeScreen() {
     analysesFetchInFlight.current = true;
     try {
       const data = await getAnalyses(forAthleteId ?? undefined, 0, 50);
-      // Filter out tombstoned IDs
+      // Prune tombstone: remove IDs the server no longer returns (already deleted in DB)
+      // Only keep tombstoned IDs that ARE still in the fresh data (in-flight deletes)
+      const serverIds = new Set(data.map(a => a.id));
+      for (const id of Array.from(_deletedAnalysisIds)) {
+        if (!serverIds.has(id)) _deletedAnalysisIds.delete(id);
+      }
+      // Filter out any remaining tombstoned IDs (just-deleted, not yet gone from server)
       const filtered = data.filter(a => !_deletedAnalysisIds.has(a.id));
       allAnalysesPool.current = filtered;
       setAnalyses(filtered.slice(0, 5));
