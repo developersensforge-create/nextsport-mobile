@@ -56,10 +56,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Imagine you\'re about to catch a basketball — that alert, coiled feeling is exactly the stance you want.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
-      title: 'Great Connection Ball Hitting Drill',
-      creator: 'TheBullpenTraining',
-      note: 'Full video — covers stance, connection, and swing fundamentals',
+      url: 'https://youtu.be/OnwcYS4fa7Y',
+      title: 'You Must Get Into THIS Position to Improve Your Hitting Stance',
+      creator: 'Antonelli Baseball',
+      note: 'Watch full video — stance setup and athletic position',
     },
   },
   {
@@ -82,10 +82,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The stride should be quiet and controlled — no lunging. Think "step to hit," not "step then hit."',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
-      title: 'Great Connection Ball Hitting Drill',
-      creator: 'TheBullpenTraining',
-      note: 'Full video — focus on the stride and weight transfer sections',
+      url: 'https://youtu.be/Sh7fLOT5Kqg',
+      title: 'STOP Doing This! The #1 Swing Mistake Youth Hitters Make',
+      creator: 'Northern Baseball Training',
+      note: 'Watch full video — stride timing and weight transfer',
     },
   },
 
@@ -162,10 +162,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Go lighter than you think — the goal is speed of rotation, not fighting the band.',
     referenceVideo: {
-      url: 'https://youtu.be/VAk5WHHd26s?si=Xi9jpGtI6Vayo3z7&t=46',
-      title: 'Resistance Band Exercises | Hitting Done Right',
+      url: 'https://youtu.be/Z1txD_mO1xM',
+      title: 'Load Your Baseball Swing for Success — 3 Drills for A Proper Load',
       creator: 'Hitting Done Right - HDR',
-      note: 'Watch 0:46 – 2:20 — focuses on rotating before the swing',
+      note: 'Watch full video — hip load and resistance training',
     },
   },
 
@@ -216,10 +216,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Casting (letting the arms fly away) is the #1 cause of weak contact. This drill exposes it immediately.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
-      title: 'Great Connection Ball Hitting Drill',
-      creator: 'TheBullpenTraining',
-      note: 'Full video — demonstrates the stay-connected swing concept',
+      url: 'https://youtu.be/mC5rRupCo1k',
+      title: 'Youth Hitting Drill To Stop Pulling Off the Ball',
+      creator: 'Antonelli Baseball',
+      note: 'Watch full video — connection and staying inside the ball',
     },
   },
   {
@@ -242,10 +242,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Most hitters are too top-hand dominant. The bottom hand is the guide — the top hand is the finisher.',
     referenceVideo: {
-      url: 'https://youtu.be/CPzMopFu95M?si=Sys4zD8W4xaxvHs9&t=20',
-      title: 'Top 5 PVC Hitting Drills - At Home Baseball Drills',
-      creator: 'Northern Baseball Training',
-      note: 'Watch 0:20 – 1:41 — one-hand and bat path isolation techniques',
+      url: 'https://youtu.be/qZHHT7xgCp4',
+      title: 'Top Hand vs Bottom Hand: Fix Common Youth Baseball Swing Mistakes',
+      creator: 'Hitting Done Right - HDR',
+      note: 'Watch full video — top/bottom hand isolation drill',
     },
   },
 
@@ -298,10 +298,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Inside → out front. Middle → even with hip. Outside → slightly behind hip. This is the contact point triangle.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
-      title: 'Great Connection Ball Hitting Drill',
-      creator: 'TheBullpenTraining',
-      note: 'Full video — demonstrates tee contact and staying connected through different zones',
+      url: 'https://youtu.be/z8Y9jEra3A8',
+      title: 'Zone Coverage + Barrel Depth in The Baseball Swing',
+      creator: 'Hitting Done Right - HDR',
+      note: 'Watch full video — contact zone mapping',
     },
   },
 
@@ -326,10 +326,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'A good finish is proof of a good swing. If your finish is off-balance or your arms are bent awkwardly, work backward to find the breakdown.',
     referenceVideo: {
-      url: 'https://youtu.be/r9fs-HGCZTs?si=nRNK09svz3WK0Cjx&t=149',
-      title: 'Medicine Ball Drills to Increase Bat Speed and Power',
-      creator: 'AntonelliBaseball',
-      note: 'Watch 2:29 – 3:10 — extension and finish position focus',
+      url: 'https://youtu.be/5fQoG4-m3bI',
+      title: '3 Keys To Hitting With More POWER! Unlock Your Home Run Potential',
+      creator: 'Northern Baseball Training',
+      note: 'Watch full video — extension and balanced finish',
     },
   },
 
@@ -406,10 +406,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The backhand is all about the crossover step. If your first step is wrong, the play is over before it starts.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
-      title: 'Top 3 At Home Infield Drills',
-      creator: 'NorthernBaseballTraining',
-      note: 'Watch 0:02 – 0:05 — backhand footwork and fielding technique',
+      url: 'https://youtu.be/6Mwdzegmgy4',
+      title: 'Drop Step / Step Up Infield Drill',
+      creator: 'Antonelli Baseball',
+      note: 'Watch full video — backhand fielding footwork',
     },
   },
   {
@@ -432,10 +432,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'On the forehand, you\'re almost always fielding on the run. Train your body to field and redirect in one smooth motion.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
-      title: 'Top 3 At Home Infield Drills',
-      creator: 'NorthernBaseballTraining',
-      note: 'Watch 0:06 – 0:09 — forehand reach and transfer technique',
+      url: 'https://youtu.be/A_FsvqFgu4c',
+      title: '12 Infield Drills EVERY Baseball Player Should Be Doing!',
+      creator: 'Northern Baseball Training',
+      note: 'Watch full video — forehand fielding range',
     },
   },
 
