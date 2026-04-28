@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -54,7 +54,8 @@ export default function HomeScreen() {
   const [analysesLoading, setAnalysesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [trainingFocus, setTrainingFocus] = useState<TrainingFocus | null>(null);
-  const hasCheckedFocus = useRef(false);
+  // Track which athleteId we last checked so switching athletes re-triggers the check
+  const lastCheckedAthleteId = useRef<string | null>(null);
   const [addAthleteVisible, setAddAthleteVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const analysesFetchInFlight = useRef(false);
@@ -127,25 +128,22 @@ export default function HomeScreen() {
     }, [refetchProfile, activeAthleteId, athletesLoading])
   );
 
-  // Check training focus on first mount
-  useEffect(() => {
-    if (hasCheckedFocus.current || athletesLoading || !activeAthleteId) return;
-    hasCheckedFocus.current = true;
-    getTrainingFocus(activeAthleteId).then(focus => {
-      setTrainingFocus(focus);
-      if (needsWeeklyCheckin(focus)) {
-        navigation.navigate('TrainingFocus');
-      }
-    });
-  }, [athletesLoading, activeAthleteId]);
-
-  // Reload training focus when returning from TrainingFocusScreen
+  // Check training focus on mount and when athlete changes
+  // Also reload when returning from TrainingFocusScreen (focus event)
   useFocusEffect(
     useCallback(() => {
-      if (activeAthleteId) {
-        getTrainingFocus(activeAthleteId).then(setTrainingFocus);
-      }
-    }, [activeAthleteId])
+      if (athletesLoading || !activeAthleteId) return;
+      getTrainingFocus(activeAthleteId).then(focus => {
+        setTrainingFocus(focus);
+        // Only redirect if this athlete hasn't been checked this session yet
+        if (lastCheckedAthleteId.current !== activeAthleteId) {
+          lastCheckedAthleteId.current = activeAthleteId;
+          if (needsWeeklyCheckin(focus)) {
+            navigation.navigate('TrainingFocus');
+          }
+        }
+      });
+    }, [athletesLoading, activeAthleteId, navigation])
   );
 
   // Drill plan from training focus
