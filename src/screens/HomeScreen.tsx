@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
 import AthleteModal from '../components/AthleteModal';
 import { COLORS } from '../theme';
+import { getTrainingFocus, needsWeeklyCheckin, pickTopDrills, TrainingFocus } from '../lib/trainingFocus';
+import { DRILLS } from '../data/drills';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
 type HomeNavProp = CompositeNavigationProp<
@@ -51,6 +53,8 @@ export default function HomeScreen() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [analysesLoading, setAnalysesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [trainingFocus, setTrainingFocus] = useState<TrainingFocus | null>(null);
+  const hasCheckedFocus = useRef(false);
   const [addAthleteVisible, setAddAthleteVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const analysesFetchInFlight = useRef(false);
@@ -122,6 +126,34 @@ export default function HomeScreen() {
       refetchProfile();
     }, [refetchProfile, activeAthleteId, athletesLoading])
   );
+
+  // Check training focus on first mount
+  useEffect(() => {
+    if (hasCheckedFocus.current || athletesLoading || !activeAthleteId) return;
+    hasCheckedFocus.current = true;
+    getTrainingFocus(activeAthleteId).then(focus => {
+      setTrainingFocus(focus);
+      if (needsWeeklyCheckin(focus)) {
+        navigation.navigate('TrainingFocus');
+      }
+    });
+  }, [athletesLoading, activeAthleteId]);
+
+  // Reload training focus when returning from TrainingFocusScreen
+  useFocusEffect(
+    useCallback(() => {
+      if (activeAthleteId) {
+        getTrainingFocus(activeAthleteId).then(setTrainingFocus);
+      }
+    }, [activeAthleteId])
+  );
+
+  // Drill plan from training focus
+  const drillPlan = trainingFocus ? pickTopDrills(trainingFocus) : null;
+  const drillItems = drillPlan?.map(({ id, reason }) => {
+    const drill = DRILLS.find(d => d.id === id);
+    return drill ? { drill, reason } : null;
+  }).filter(Boolean) ?? [];
 
   async function onRefresh() {
     setRefreshing(true);
@@ -289,17 +321,65 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* CTA Buttons */}
-        <TouchableOpacity style={styles.recordButton} onPress={handleRecord} activeOpacity={0.85}>
-          <Ionicons name="videocam" size={28} color="#000" />
-          <Text style={styles.recordButtonText}>Record My Swing</Text>
-          <Ionicons name="arrow-forward" size={20} color="#000" />
-        </TouchableOpacity>
+        {/* Drill Plan Card */}
+        {drillItems.length > 0 && (
+          <View style={styles.drillPlanCard}>
+            <View style={styles.drillPlanHeader}>
+              <View>
+                <Text style={styles.drillPlanTitle}>🎯 {activeAthlete ? `${activeAthlete.name.split(' ')[0]}'s` : 'Your'} Drill Plan</Text>
+                <Text style={styles.drillPlanSub}>Based on weekly check-in</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('TrainingFocus')}>
+                <Text style={styles.drillPlanUpdate}>✏️ Update</Text>
+              </TouchableOpacity>
+            </View>
+            {drillItems.map((item, idx) => item && (
+              <View key={item.drill.id} style={[styles.drillItem, idx === drillItems.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 }]}>
+                <View style={styles.drillNum}><Text style={styles.drillNumText}>{idx + 1}</Text></View>
+                <View style={styles.drillInfo}>
+                  <Text style={styles.drillName}>{item.drill.title}</Text>
+                  <Text style={styles.drillWhy} numberOfLines={1}>{item.reason}</Text>
+                </View>
+                <View style={[styles.drillTag, { backgroundColor: idx === 0 ? 'rgba(249,115,22,0.15)' : idx === 1 ? 'rgba(59,130,246,0.15)' : 'rgba(139,92,246,0.15)' }]}>
+                  <Text style={[styles.drillTagText, { color: idx === 0 ? '#fb923c' : idx === 1 ? '#60a5fa' : '#a78bfa' }]}>{item.drill.category.split(' ')[0]}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
-        <TouchableOpacity style={styles.uploadButton} onPress={handleUpload} activeOpacity={0.85}>
-          <Ionicons name="cloud-upload-outline" size={22} color={COLORS.accent} />
-          <Text style={styles.uploadButtonText}>Upload Existing Video</Text>
-        </TouchableOpacity>
+        {/* No drill plan yet */}
+        {drillItems.length === 0 && (
+          <TouchableOpacity style={styles.drillPlanEmpty} onPress={() => navigation.navigate('TrainingFocus')} activeOpacity={0.8}>
+            <Text style={styles.drillPlanEmptyIcon}>🎯</Text>
+            <View style={styles.drillPlanEmptyText}>
+              <Text style={styles.drillPlanEmptyTitle}>Set Up Your Drill Plan</Text>
+              <Text style={styles.drillPlanEmptySub}>Tell us about your player → get 3 targeted drills</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.accent} />
+          </TouchableOpacity>
+        )}
+
+        {/* Analyze Swing Card */}
+        <View style={styles.analysisCard}>
+          <View style={styles.analysisCardHeader}>
+            <View style={styles.analysisIcon}><Text style={{ fontSize: 18 }}>📹</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.analysisTitle}>Analyze {activeAthlete ? `${activeAthlete.name.split(' ')[0]}'s` : 'Your'} Swing</Text>
+              <Text style={styles.analysisSub}>AI coach · Video analysis</Text>
+            </View>
+          </View>
+          <View style={styles.analysisButtons}>
+            <TouchableOpacity style={styles.analysisBtnPrimary} onPress={handleRecord} activeOpacity={0.85}>
+              <Ionicons name="videocam" size={16} color="#fff" />
+              <Text style={styles.analysisBtnPrimaryText}>Record</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.analysisBtnSecondary} onPress={handleUpload} activeOpacity={0.85}>
+              <Ionicons name="cloud-upload-outline" size={16} color={COLORS.text} />
+              <Text style={styles.analysisBtnSecondaryText}>Upload</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Token upgrade nudge */}
         {profile && profile.tokens_remaining <= 10 && profile.subscription_status !== 'premium' && (
@@ -518,6 +598,49 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: COLORS.border,
   },
+  // Drill Plan Card
+  drillPlanCard: {
+    backgroundColor: '#131a2e',
+    borderRadius: 18, padding: 16, marginHorizontal: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)',
+  },
+  drillPlanHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 },
+  drillPlanTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text },
+  drillPlanSub: { fontSize: 11, color: COLORS.muted, marginTop: 2 },
+  drillPlanUpdate: { fontSize: 12, color: '#60a5fa', fontWeight: '600' },
+  drillItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  drillNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(249,115,22,0.12)', borderWidth: 1, borderColor: 'rgba(249,115,22,0.25)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  drillNumText: { fontSize: 13, fontWeight: '800', color: '#f97316' },
+  drillInfo: { flex: 1 },
+  drillName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  drillWhy: { fontSize: 11, color: COLORS.muted, marginTop: 2 },
+  drillTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  drillTagText: { fontSize: 10, fontWeight: '700' },
+  drillPlanEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    marginHorizontal: 16, marginBottom: 16, borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.2)', borderStyle: 'dashed' as const,
+  },
+  drillPlanEmptyIcon: { fontSize: 28 },
+  drillPlanEmptyText: { flex: 1 },
+  drillPlanEmptyTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  drillPlanEmptySub: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+  // Analyze Swing Card
+  analysisCard: {
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+  },
+  analysisCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  analysisIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(249,115,22,0.12)', alignItems: 'center', justifyContent: 'center' },
+  analysisTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  analysisSub: { fontSize: 12, color: COLORS.muted },
+  analysisButtons: { flexDirection: 'row', gap: 10 },
+  analysisBtnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 13, borderRadius: 12, backgroundColor: COLORS.accent },
+  analysisBtnPrimaryText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  analysisBtnSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 13, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.12)' },
+  analysisBtnSecondaryText: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+
   recordButton: {
     backgroundColor: COLORS.accent,
     borderRadius: 14,
