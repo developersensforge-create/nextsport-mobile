@@ -60,6 +60,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload APK to Supabase (public download)
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          RUN_NUM=${{ github.run_number }}
+          APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+          SUPABASE_URL="https://kpahmlhkvmasyobwrewy.supabase.co"
+
+          # Upload to Supabase storage
+          curl -s -X POST "${SUPABASE_URL}/storage/v1/object/apk-builds/nextsport-build${RUN_NUM}.apk" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @${APK_PATH}
+
+          # Create signed URL (30 days)
+          SIGNED=$(curl -s -X POST "${SUPABASE_URL}/storage/v1/object/sign/apk-builds/nextsport-build${RUN_NUM}.apk" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"expiresIn": 2592000}')
+
+          SIGNED_URL="${SUPABASE_URL}/storage/v1$(echo $SIGNED | python3 -c 'import json,sys; print(json.load(sys.stdin).get("signedURL",""))')"
+          echo "SUPABASE_APK_URL=${SIGNED_URL}" >> $GITHUB_ENV
+
       - name: Notify Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -67,7 +90,7 @@ jobs:
           RUN_NUM=${{ github.run_number }}
           SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1 | cut -c1-100)
-          APK_URL="https://github.com/${{ github.repository }}/releases/download/build-${RUN_NUM}/app-release.apk"
+          APK_URL="${SUPABASE_APK_URL}"
 
           curl -s -X POST "$DISCORD_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
