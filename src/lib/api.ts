@@ -78,7 +78,10 @@ export async function getProfile(): Promise<Profile> {
 
 export async function getAnalyses(athleteId?: string, offset = 0, limit = 50): Promise<Analysis[]> {
   const qs = new URLSearchParams();
-  if (athleteId) qs.set('athlete_id', athleteId);
+  if (athleteId) {
+    qs.set('athlete_id', athleteId);
+    qs.set('strict', 'true'); // Each athlete sees only their own analyses
+  }
   if (offset > 0) qs.set('offset', String(offset));
   if (limit !== 50) qs.set('limit', String(limit));
   const params = qs.toString() ? `?${qs.toString()}` : '';

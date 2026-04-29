@@ -89,9 +89,9 @@ export default function AnalysisCard({ analysis, onPress, onDelete, showDeleteIc
       <View style={styles.middle}>
         <Text style={styles.dateText}>{formatDate(analysis.created_at)}</Text>
         <Text style={styles.statusText}>{getStatusLabel(analysis.status)}</Text>
-        {analysis.feedback ? (
+        {analysis.feedback && !analysis.feedback.trim().startsWith('{') ? (
           <Text style={styles.preview} numberOfLines={2}>
-            {analysis.feedback.slice(0, 80)}…
+            {analysis.feedback.replace(/\{[^}]*\}/g, '').trim().slice(0, 100)}
           </Text>
         ) : null}
       </View>

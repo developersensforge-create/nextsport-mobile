@@ -15,14 +15,16 @@ import { COLORS } from '../theme';
 import { Athlete } from '../lib/api';
 
 const AGE_GROUPS = ['8U', '10U', '12U', '14U', '16U', '18U', 'Adult'];
-const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
+const LEVELS = ['Little League', 'A', 'AA', 'AAA', 'Elite'];
 const SPORTS = ['Baseball', 'Softball'];
+const BATTING_HANDS = ['Right', 'Left', 'Switch'];
 
 interface AthleteFormData {
   name: string;
   age_group: string;
   level: string;
   sport: string;
+  batting_hand?: string;
 }
 
 interface AthleteModalProps {
@@ -62,6 +64,7 @@ export default function AthleteModal({
 }: AthleteModalProps) {
   const isEdit = !!athlete;
   const [name, setName] = useState('');
+  const [battingHand, setBattingHand] = useState('Right');
   const [ageGroup, setAgeGroup] = useState('Adult');
   const [level, setLevel] = useState('Beginner');
   const [sport, setSport] = useState('Baseball');
@@ -72,7 +75,8 @@ export default function AthleteModal({
     if (visible) {
       setName(athlete?.name ?? '');
       setAgeGroup(athlete?.age_group ?? 'Adult');
-      setLevel(athlete?.level ?? 'Beginner');
+      setLevel(athlete?.level ?? 'Little League');
+      setBattingHand((athlete as any)?.batting_hand ?? 'Right');
       setSport(athlete?.sport ?? 'Baseball');
       setNameError('');
       setSaving(false);
@@ -87,7 +91,7 @@ export default function AthleteModal({
     }
     setSaving(true);
     try {
-      await onSave({ name: trimmed, age_group: ageGroup, level, sport });
+      await onSave({ name: trimmed, age_group: ageGroup, level, sport, batting_hand: battingHand } as any);
     } finally {
       setSaving(false);
     }
@@ -170,6 +174,19 @@ export default function AthleteModal({
                   label={sp}
                   selected={sport === sp}
                   onPress={() => setSport(sp)}
+                />
+              ))}
+            </View>
+
+            {/* Batting Hand */}
+            <Text style={styles.label}>Batting Hand</Text>
+            <View style={styles.chipRow}>
+              {BATTING_HANDS.map((bh) => (
+                <Chip
+                  key={bh}
+                  label={bh}
+                  selected={battingHand === bh}
+                  onPress={() => setBattingHand(bh)}
                 />
               ))}
             </View>

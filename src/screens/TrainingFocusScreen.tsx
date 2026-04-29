@@ -98,7 +98,14 @@ export default function TrainingFocusScreen() {
                 : 'Personalize your drill plan'}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.replace('MainTabs')}>
+          <TouchableOpacity onPress={async () => {
+            // Save default focus so weekly check-in timer starts (won't prompt again for 7 days)
+            if (activeAthleteId) {
+              const saved = { ...(focus || defaultFocus(activeAthleteId)), updatedAt: new Date().toISOString() };
+              await saveTrainingFocus(saved);
+            }
+            navigation.replace('MainTabs');
+          }}>
             <Text style={styles.skip}>Skip</Text>
           </TouchableOpacity>
         </View>
