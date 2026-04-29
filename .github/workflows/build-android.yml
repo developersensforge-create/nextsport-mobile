@@ -74,8 +74,8 @@ jobs:
             -H "Content-Type: application/vnd.android.package-archive" \
             --data-binary @${APK_PATH}
 
-          # Public URL — no token, no expiry, always downloads cleanly
-          PUBLIC_URL="${SUPABASE_URL}/storage/v1/object/public/apk-builds/nextsport-build${RUN_NUM}.apk"
+          # Public URL with ?download= forces Content-Disposition: attachment on Android Chrome
+          PUBLIC_URL="${SUPABASE_URL}/storage/v1/object/public/apk-builds/nextsport-build${RUN_NUM}.apk?download=nextsport.apk"
           echo "SUPABASE_APK_URL=${PUBLIC_URL}" >> $GITHUB_ENV
 
       - name: Notify Discord
