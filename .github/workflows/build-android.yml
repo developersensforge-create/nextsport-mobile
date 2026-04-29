@@ -60,7 +60,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload APK to Supabase (public download)
+      - name: Upload APK to Supabase (public direct download)
         env:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
@@ -68,20 +68,15 @@ jobs:
           APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
           SUPABASE_URL="https://kpahmlhkvmasyobwrewy.supabase.co"
 
-          # Upload to Supabase storage
+          # Upload to public Supabase bucket
           curl -s -X POST "${SUPABASE_URL}/storage/v1/object/apk-builds/nextsport-build${RUN_NUM}.apk" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --data-binary @${APK_PATH}
 
-          # Create signed URL (30 days)
-          SIGNED=$(curl -s -X POST "${SUPABASE_URL}/storage/v1/object/sign/apk-builds/nextsport-build${RUN_NUM}.apk" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{"expiresIn": 2592000}')
-
-          SIGNED_URL="${SUPABASE_URL}/storage/v1$(echo $SIGNED | python3 -c 'import json,sys; print(json.load(sys.stdin).get("signedURL",""))')"
-          echo "SUPABASE_APK_URL=${SIGNED_URL}" >> $GITHUB_ENV
+          # Public URL — no token, no expiry, always downloads cleanly
+          PUBLIC_URL="${SUPABASE_URL}/storage/v1/object/public/apk-builds/nextsport-build${RUN_NUM}.apk"
+          echo "SUPABASE_APK_URL=${PUBLIC_URL}" >> $GITHUB_ENV
 
       - name: Notify Discord
         env:
