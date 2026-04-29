@@ -476,16 +476,16 @@ export default function AnalysisResultScreen() {
 
         {!resultVideoUrl && (
           <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>Annotated Video Not Ready</Text>
+            <Text style={styles.cardTitle}>🎬 Annotated Video Processing</Text>
             <Text style={styles.feedbackBody}>
-              Your analysis is complete, but no annotated result video URL is available yet.
+              Your AI coaching video is being generated. This usually takes 5–10 minutes. Come back later and tap "Check Again" — it'll be ready soon!
             </Text>
             <TouchableOpacity
               style={[styles.retryButton, videoRefreshLoading && { opacity: 0.6 }]}
               onPress={refreshResultVideo}
               disabled={videoRefreshLoading}
             >
-              <Text style={styles.retryButtonText}>{videoRefreshLoading ? 'Checking...' : 'Check Again'}</Text>
+              <Text style={styles.retryButtonText}>{videoRefreshLoading ? 'Checking…' : 'Check Again'}</Text>
             </TouchableOpacity>
           </View>
         )}
