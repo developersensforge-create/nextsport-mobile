@@ -19,7 +19,7 @@ import { getAuthHeaders } from '../lib/api';
 
 type PaywallNavProp = StackNavigationProp<RootStackParamList, 'Paywall'>;
 
-const BASE_URL = 'https://nextsport-ruizhi1201s-projects.vercel.app';
+const BASE_URL = 'https://nextsport-sensforge.vercel.app';
 
 const FEATURES = [
   {
