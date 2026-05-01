@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { updateAthlete, Athlete } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { useAthletes } from '../hooks/useAthletes';
 import AthleteModal from '../components/AthleteModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -143,7 +144,22 @@ export default function ProfileScreen() {
   }
 
   async function handleManageBilling() {
-    await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('https://nextsport-sensforge.vercel.app/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: session?.access_token }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        await WebBrowser.openBrowserAsync(data.url);
+      } else {
+        Alert.alert('Error', data.error || 'Could not open subscription management.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open subscription management. Please try again.');
+    }
   }
 
   async function handleShareReferral() {
