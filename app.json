@@ -28,7 +28,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nextsport.app",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "NSCameraUsageDescription": "NextSport needs camera access to record your swing videos for AI analysis.",
         "NSMicrophoneUsageDescription": "NextSport needs microphone access to record audio with your swing videos.",
