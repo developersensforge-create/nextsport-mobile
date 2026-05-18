@@ -11,12 +11,8 @@ workflows:
       xcode: latest
       vars:
         BUNDLE_ID: com.nextsport.app
-        XCODE_WORKSPACE: ios/NextSport.xcworkspace
-        XCODE_SCHEME: NextSport
+        EXPO_TOKEN: ely-sMG1poOQlgWSjWxWHoXe6k6MDyXsio3_viYg
     scripts:
-      - name: Configure git authentication
-        script: |
-          git config --global url."https://$GITHUB_TOKEN@github.com/".insteadOf "https://github.com/"
       - name: Install dependencies
         script: npm ci
       - name: Set up keychain
@@ -33,8 +29,6 @@ workflows:
           echo $CM_PROVISIONING_PROFILE | base64 --decode > "$PROFILES_HOME/NextSport.mobileprovision"
       - name: Expo prebuild
         script: npx expo prebuild --platform ios --clean
-        environment:
-          EXPO_TOKEN: ely-sMG1poOQlgWSjWxWHoXe6k6MDyXsio3_viYg
       - name: Build iOS Archive
         script: |
           xcodebuild -workspace ios/NextSport.xcworkspace \
