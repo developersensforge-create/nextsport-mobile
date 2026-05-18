@@ -9,12 +9,18 @@ workflows:
         - default
       node: 20.11.0
       xcode: latest
+      vars:
+        BUNDLE_ID: com.nextsport.app
+        XCODE_WORKSPACE: ios/NextSport.xcworkspace
+        XCODE_SCHEME: NextSport
     scripts:
+      - name: Configure git authentication
+        script: |
+          git config --global url."https://$GITHUB_TOKEN@github.com/".insteadOf "https://github.com/"
       - name: Install dependencies
         script: npm ci
       - name: Set up keychain
-        script: |
-          keychain initialize
+        script: keychain initialize
       - name: Set up signing certificate
         script: |
           CERTIFICATE_PATH=$CM_BUILD_DIR/certificate.p12
@@ -24,27 +30,23 @@ workflows:
         script: |
           PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILES_HOME"
-          PROFILE_PATH="$PROFILES_HOME/NextSport.mobileprovision"
-          echo $CM_PROVISIONING_PROFILE | base64 --decode > "$PROFILE_PATH"
-          echo "Provisioning profile installed at $PROFILE_PATH"
+          echo $CM_PROVISIONING_PROFILE | base64 --decode > "$PROFILES_HOME/NextSport.mobileprovision"
       - name: Expo prebuild
-        script: |
-          npx expo prebuild --platform ios --clean
+        script: npx expo prebuild --platform ios --clean
         environment:
           EXPO_TOKEN: ely-sMG1poOQlgWSjWxWHoXe6k6MDyXsio3_viYg
-      - name: Build iOS
+      - name: Build iOS Archive
         script: |
-          cd ios
-          xcodebuild -workspace NextSport.xcworkspace \
+          xcodebuild -workspace ios/NextSport.xcworkspace \
             -scheme NextSport \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/NextSport.xcarchive \
-            -destination generic/platform=iOS \
+            -destination "generic/platform=iOS" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="NextSport AppStore Distribution" \
             DEVELOPMENT_TEAM=58BKXDS287 \
-            archive
+            archive | xcpretty
       - name: Export IPA
         script: |
           cat > /tmp/export_options.plist << 'PLIST'
