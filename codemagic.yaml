@@ -1,0 +1,80 @@
+workflows:
+  ios-testflight:
+    name: NextSport iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - signing
+        - default
+      node: 20.11.0
+      xcode: latest
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Set up keychain
+        script: |
+          keychain initialize
+      - name: Set up signing certificate
+        script: |
+          CERTIFICATE_PATH=$CM_BUILD_DIR/certificate.p12
+          echo $CM_CERTIFICATE | base64 --decode > $CERTIFICATE_PATH
+          keychain add-certificates --certificate $CERTIFICATE_PATH --certificate-password $CM_CERTIFICATE_PASSWORD
+      - name: Set up provisioning profile
+        script: |
+          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_HOME"
+          PROFILE_PATH="$PROFILES_HOME/NextSport.mobileprovision"
+          echo $CM_PROVISIONING_PROFILE | base64 --decode > "$PROFILE_PATH"
+          echo "Provisioning profile installed at $PROFILE_PATH"
+      - name: Expo prebuild
+        script: |
+          npx expo prebuild --platform ios --clean
+        environment:
+          EXPO_TOKEN: ely-sMG1poOQlgWSjWxWHoXe6k6MDyXsio3_viYg
+      - name: Build iOS
+        script: |
+          cd ios
+          xcodebuild -workspace NextSport.xcworkspace \
+            -scheme NextSport \
+            -configuration Release \
+            -archivePath $CM_BUILD_DIR/NextSport.xcarchive \
+            -destination generic/platform=iOS \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="NextSport AppStore Distribution" \
+            DEVELOPMENT_TEAM=58BKXDS287 \
+            archive
+      - name: Export IPA
+        script: |
+          cat > /tmp/export_options.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>58BKXDS287</string>
+            <key>uploadBitcode</key><false/>
+            <key>uploadSymbols</key><true/>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.nextsport.app</key><string>NextSport AppStore Distribution</string>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath $CM_BUILD_DIR/NextSport.xcarchive \
+            -exportPath $CM_BUILD_DIR/ipa \
+            -exportOptionsPlist /tmp/export_options.plist
+    artifacts:
+      - $CM_BUILD_DIR/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+        beta_groups:
+          - SF-Internal
