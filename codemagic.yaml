@@ -10,8 +10,9 @@ workflows:
       node: 20.11.0
       xcode: latest
       vars:
-        BUNDLE_ID: com.nextsport.app
         EXPO_TOKEN: ely-sMG1poOQlgWSjWxWHoXe6k6MDyXsio3_viYg
+    integrations:
+      app_store_connect: Sensforge ASC Key
     scripts:
       - name: Install dependencies
         script: npm ci
@@ -38,7 +39,7 @@ workflows:
             -destination "generic/platform=iOS" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="NextSport AppStore Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="NextSport AppStore Distribution v2" \
             DEVELOPMENT_TEAM=58BKXDS287 \
             archive | xcpretty
       - name: Export IPA
@@ -55,7 +56,7 @@ workflows:
             <key>signingStyle</key><string>manual</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.nextsport.app</key><string>NextSport AppStore Distribution</string>
+              <key>com.nextsport.app</key><string>NextSport AppStore Distribution v2</string>
             </dict>
           </dict>
           </plist>
