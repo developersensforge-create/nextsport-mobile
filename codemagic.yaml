@@ -11,8 +11,6 @@ workflows:
       xcode: latest
       vars:
         EXPO_TOKEN: ely-sMG1poOQlgWSjWxWHoXe6k6MDyXsio3_viYg
-    integrations:
-      app_store_connect: Sensforge ASC Key
     scripts:
       - name: Install dependencies
         script: npm ci
@@ -65,13 +63,11 @@ workflows:
             -archivePath $CM_BUILD_DIR/NextSport.xcarchive \
             -exportPath $CM_BUILD_DIR/ipa \
             -exportOptionsPlist /tmp/export_options.plist
+      - name: Upload to TestFlight
+        script: |
+          xcrun altool --upload-app -f $CM_BUILD_DIR/ipa/*.ipa \
+            --apiKey $APP_STORE_CONNECT_KEY_IDENTIFIER \
+            --apiIssuer $APP_STORE_CONNECT_ISSUER_ID \
+            --type ios
     artifacts:
       - $CM_BUILD_DIR/ipa/*.ipa
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
-        beta_groups:
-          - SF-Internal
