@@ -40,10 +40,10 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build release APK
+      - name: Build release APK and AAB
         working-directory: android
         run: |
-          ./gradlew assembleRelease \
+          ./gradlew assembleRelease bundleRelease \
             -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/nextsport.p12 \
             -Pandroid.injected.signing.store.password=nextsport2026 \
             -Pandroid.injected.signing.key.alias=nextsport \
@@ -55,7 +55,9 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: Build #${{ github.run_number }}
-          files: android/app/build/outputs/apk/release/app-release.apk
+          files: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,11 +70,18 @@ jobs:
           APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
           SUPABASE_URL="https://kpahmlhkvmasyobwrewy.supabase.co"
 
-          # Upload to public Supabase bucket
+          # Upload APK to Supabase
           curl -s -X POST "${SUPABASE_URL}/storage/v1/object/apk-builds/nextsport-build${RUN_NUM}.apk" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --data-binary @${APK_PATH}
+
+          # Upload AAB to Supabase (for Google Play)
+          AAB_PATH="android/app/build/outputs/bundle/release/app-release.aab"
+          curl -s -X POST "${SUPABASE_URL}/storage/v1/object/apk-builds/nextsport-build${RUN_NUM}.aab" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @${AAB_PATH}
 
           # Public URL with ?download= forces Content-Disposition: attachment on Android Chrome
           PUBLIC_URL="${SUPABASE_URL}/storage/v1/object/public/apk-builds/nextsport-build${RUN_NUM}.apk?download=nextsport.apk"
