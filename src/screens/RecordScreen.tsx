@@ -8,6 +8,7 @@ import {
   InteractionManager,
   Linking,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,6 +92,7 @@ export default function RecordScreen() {
   const athleteId = route.params?.athleteId;
 
   const [permission, requestPermission] = useCameraPermissions();
+  const [permissionExplainer, setPermissionExplainer] = useState<'camera' | 'photos' | null>(null);
   const [mode, setMode] = useState<'record' | 'upload'>(initialMode);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const [isRecording, setIsRecording] = useState(false);
@@ -218,7 +220,13 @@ export default function RecordScreen() {
     };
   }, [navigation]);
 
+  // Show our explainer first, then trigger the system permission dialog on confirm
+  const showCameraPermissionExplainer = useCallback(() => {
+    setPermissionExplainer('camera');
+  }, []);
+
   const requestCameraPermission = useCallback(async () => {
+    setPermissionExplainer(null);
     logger.info(TAG, 'requestCameraPermission: requesting camera permission');
     const result = await requestPermission();
     logger.info(TAG, `requestCameraPermission: granted=${result.granted}`);
@@ -226,7 +234,7 @@ export default function RecordScreen() {
       logger.warn(TAG, 'requestCameraPermission: permission DENIED by user');
       Alert.alert(
         'Camera Permission Required',
-        'Please allow camera access in Settings to record your swing.',
+        'Please allow camera and microphone access in Settings to record your swing.',
         [{ text: 'OK' }]
       );
     }
@@ -270,6 +278,16 @@ export default function RecordScreen() {
   }
 
   async function pickVideo() {
+    // Check if we already have permission; if not, show explainer first
+    const existingPerm = await ImagePicker.getMediaLibraryPermissionsAsync();
+    if (!existingPerm.granted && existingPerm.canAskAgain) {
+      setPermissionExplainer('photos');
+      return;
+    }
+    await doPickVideo();
+  }
+
+  async function doPickVideo() {
     logger.info(TAG, 'pickVideo: launching image library picker');
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
@@ -721,10 +739,10 @@ export default function RecordScreen() {
           <Ionicons name="camera-outline" size={60} color={COLORS.muted} />
           <Text style={styles.permissionTitle}>Camera Access Needed</Text>
           <Text style={styles.permissionSubtitle}>
-            NextSport needs camera access to record your swing videos.
+            NextSport needs camera and microphone access to record your swing for AI analysis.
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+          <TouchableOpacity style={styles.permissionButton} onPress={showCameraPermissionExplainer}>
+            <Text style={styles.permissionButtonText}>Continue</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.switchToUploadButton}
@@ -733,6 +751,12 @@ export default function RecordScreen() {
             <Text style={styles.switchToUploadText}>Upload a video instead</Text>
           </TouchableOpacity>
         </View>
+        <PermissionExplainerModal
+          visible={permissionExplainer === 'camera'}
+          type="camera"
+          onConfirm={requestCameraPermission}
+          onDismiss={() => setPermissionExplainer(null)}
+        />
       </SafeAreaView>
     );
   }
@@ -795,8 +819,149 @@ export default function RecordScreen() {
         )}
       </CameraView>
     </View>
+    <PermissionExplainerModal
+      visible={permissionExplainer === 'photos'}
+      type="photos"
+      onConfirm={async () => {
+        setPermissionExplainer(null);
+        await doPickVideo();
+      }}
+      onDismiss={() => setPermissionExplainer(null)}
+    />
   );
 }
+
+// ---------------------------------------------------------------------------
+// Permission Explainer Modal
+// Shown BEFORE the system permission dialog so the user understands why
+// we need each permission. Required by App Store guideline 5.1.1.
+// ---------------------------------------------------------------------------
+
+type ExplainerType = 'camera' | 'photos';
+
+interface ExplainerConfig {
+  icon: string;
+  title: string;
+  body: string;
+  confirmLabel: string;
+}
+
+const EXPLAINER_CONFIG: Record<ExplainerType, ExplainerConfig> = {
+  camera: {
+    icon: '🎥',
+    title: 'Camera & Microphone Access',
+    body:
+      'NextSport needs access to your camera and microphone to record your swing video.\n\n' +
+      '• Your video is used only to generate your AI swing analysis.\n' +
+      '• It is uploaded securely to our servers for processing, then accessible only to you.\n' +
+      '• We never use your video for advertising or share it with third parties.',
+    confirmLabel: 'Continue',
+  },
+  photos: {
+    icon: '🖼️',
+    title: 'Photo Library Access',
+    body:
+      'NextSport needs read access to your photo library so you can select an existing swing video for analysis.\n\n' +
+      '• Only the video you choose is accessed — we do not browse or scan your other photos.\n' +
+      '• Your selected video is uploaded securely and used solely for AI analysis.\n' +
+      '• We never save, share, or use your media for any other purpose.',
+    confirmLabel: 'Continue',
+  },
+};
+
+function PermissionExplainerModal({
+  visible,
+  type,
+  onConfirm,
+  onDismiss,
+}: {
+  visible: boolean;
+  type: ExplainerType;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const config = EXPLAINER_CONFIG[type];
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <View style={explainerStyles.overlay}>
+        <View style={explainerStyles.sheet}>
+          <Text style={explainerStyles.icon}>{config.icon}</Text>
+          <Text style={explainerStyles.title}>{config.title}</Text>
+          <Text style={explainerStyles.body}>{config.body}</Text>
+          <TouchableOpacity style={explainerStyles.confirmButton} onPress={onConfirm} activeOpacity={0.85}>
+            <Text style={explainerStyles.confirmText}>{config.confirmLabel}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={explainerStyles.dismissButton} onPress={onDismiss} activeOpacity={0.7}>
+            <Text style={explainerStyles.dismissText}>Skip</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const explainerStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#1a1f2e',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 28,
+    paddingTop: 28,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  icon: {
+    fontSize: 44,
+    marginBottom: 12,
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  body: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'left',
+    alignSelf: 'stretch',
+    marginBottom: 28,
+  },
+  confirmButton: {
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  confirmText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  dismissButton: {
+    paddingVertical: 8,
+  },
+  dismissText: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 14,
+  },
+});
 
 const styles = StyleSheet.create({
   safe: {

@@ -30,9 +30,9 @@
       "bundleIdentifier": "com.nextsport.app",
       "buildNumber": "5",
       "infoPlist": {
-        "NSCameraUsageDescription": "NextSport needs camera access to record your swing videos for AI analysis.",
-        "NSMicrophoneUsageDescription": "NextSport needs microphone access to record audio with your swing videos.",
-        "NSPhotoLibraryUsageDescription": "NextSport needs access to your photo library to upload existing swing videos for analysis.",
+        "NSCameraUsageDescription": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are uploaded securely and used only for your personal analysis.",
+        "NSMicrophoneUsageDescription": "NextSport uses your microphone to capture audio when recording swing videos. Audio is included in your video upload and used only for analysis.",
+        "NSPhotoLibraryUsageDescription": "NextSport accesses your photo library so you can select an existing swing video for AI analysis. Only the video you choose is accessed — your other photos are never browsed or stored.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -40,8 +40,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow NextSport to access your camera to record swing videos.",
-          "microphonePermission": "Allow NextSport to access your microphone for video recording."
+          "cameraPermission": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are used only for your personal analysis.",
+          "microphonePermission": "NextSport uses your microphone to capture audio when recording swing videos. Audio is used only for your personal analysis."
         }
       ]
     ],
