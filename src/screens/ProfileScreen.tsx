@@ -9,7 +9,7 @@ import {
   Share,
   RefreshControl,
 } from 'react-native';
-import { updateAthlete, Athlete } from '../lib/api';
+import { updateAthlete, Athlete, deleteAccount } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { useAthletes } from '../hooks/useAthletes';
 import AthleteModal from '../components/AthleteModal';
@@ -176,6 +176,46 @@ export default function ProfileScreen() {
     if (!dateStr) return 'Every Monday';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  async function handleDeleteAccount() {
+    // Step 1: Initial warning
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account, all athletes, all swing analyses, and all uploaded videos. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: () => {
+            // Step 2: Final confirmation
+            Alert.alert(
+              'Are You Sure?',
+              'Your account and all associated data will be permanently removed. Your subscription will be cancelled if you have one. This cannot be reversed.',
+              [
+                { text: 'Keep My Account', style: 'cancel' },
+                {
+                  text: 'Yes, Delete Everything',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await deleteAccount();
+                      await signOut();
+                    } catch (err: any) {
+                      Alert.alert(
+                        'Error',
+                        err?.response?.data?.error || err?.message || 'Failed to delete account. Please try again.'
+                      );
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   }
 
   const isPremium = profile?.subscription_status === 'premium';
@@ -427,6 +467,12 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.85}>
           <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
           <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+
+        {/* Delete account */}
+        <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount} activeOpacity={0.85}>
+          <Ionicons name="trash-outline" size={20} color={COLORS.muted} />
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
         </TouchableOpacity>
 
         <Text style={styles.version}>NextSport v1.0.0</Text>
@@ -738,6 +784,18 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
     fontSize: 16,
     fontWeight: '700',
+    marginLeft: 8,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginBottom: 24,
+  },
+  deleteAccountText: {
+    color: COLORS.muted,
+    fontSize: 14,
     marginLeft: 8,
   },
   version: {

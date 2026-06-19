@@ -385,3 +385,19 @@ export async function deleteAnalysis(id: string): Promise<void> {
     throw err;
   }
 }
+
+export async function deleteAccount(): Promise<void> {
+  logger.info(TAG, 'deleteAccount: requesting account deletion');
+  const headers = await getAuthHeaders();
+  try {
+    const resp = await axios.delete(`${BASE_URL}/api/account`, { headers });
+    logger.info(TAG, 'deleteAccount: server confirmed deletion', { status: resp.status });
+  } catch (err: any) {
+    logger.error(TAG, 'deleteAccount: FAILED', {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      message: err?.message,
+    });
+    throw err;
+  }
+}
