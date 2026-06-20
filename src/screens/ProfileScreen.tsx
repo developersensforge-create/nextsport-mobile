@@ -16,6 +16,7 @@ import AthleteModal from '../components/AthleteModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
@@ -145,20 +146,10 @@ export default function ProfileScreen() {
 
   async function handleManageBilling() {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('https://nextsport-sensforge.vercel.app/api/stripe/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: session?.access_token }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        await WebBrowser.openBrowserAsync(data.url);
-      } else {
-        Alert.alert('Error', data.error || 'Could not open subscription management.');
-      }
+      // Open Apple's subscription management page
+      await Linking.openURL('https://apps.apple.com/account/subscriptions');
     } catch {
-      Alert.alert('Error', 'Could not open subscription management. Please try again.');
+      Alert.alert('Error', 'Could not open subscription management. Please go to App Store → Settings → Subscriptions.');
     }
   }
 
@@ -375,7 +366,7 @@ export default function ProfileScreen() {
         {/* Manage subscription (premium users) */}
         {isPremium && (
           <TouchableOpacity style={styles.manageCard} onPress={handleManageBilling} activeOpacity={0.85}>
-            <Ionicons name="card-outline" size={20} color={COLORS.accent} />
+            <Ionicons name="storefront-outline" size={20} color={COLORS.accent} />
             <Text style={styles.manageText}>Manage Subscription</Text>
             <Ionicons name="open-outline" size={16} color={COLORS.muted} />
           </TouchableOpacity>

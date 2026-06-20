@@ -43,7 +43,8 @@
           "cameraPermission": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are used only for your personal analysis.",
           "microphonePermission": "NextSport uses your microphone to capture audio when recording swing videos. Audio is used only for your personal analysis."
         }
-      ]
+      ],
+      "expo-iap"
     ],
     "extra": {
       "eas": {

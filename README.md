@@ -10,7 +10,7 @@ AI Baseball Swing Analyzer — React Native (Expo) app.
 
 # 2. Push code (already committed locally)
 cd nextsport-mobile
-git remote set-url origin https://github.com/ruizhi1201/nextsport-mobile.git
+git remote set-url origin https://github.com/developersensforge-create/nextsport-mobile.git
 git push -u origin main
 ```
 
