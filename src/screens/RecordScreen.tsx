@@ -762,6 +762,7 @@ export default function RecordScreen() {
   }
 
   return (
+    <>
     <View style={styles.cameraContainer}>
       <CameraView
         ref={cameraRef}
@@ -828,6 +829,7 @@ export default function RecordScreen() {
       }}
       onDismiss={() => setPermissionExplainer(null)}
     />
+    </>
   );
 }
 
