@@ -9,14 +9,9 @@ import {
   Share,
   RefreshControl,
 } from 'react-native';
-import { updateAthlete, Athlete, deleteAccount } from '../lib/api';
-import { supabase } from '../lib/supabase';
-import { useAthletes } from '../hooks/useAthletes';
-import AthleteModal from '../components/AthleteModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
@@ -24,7 +19,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { getReferral } from '../lib/api';
-import { useLogContext } from '../context/LogContext';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
@@ -42,19 +36,8 @@ export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNavProp>();
   const { user, signOut } = useAuth();
   const { profile, loading, refetch } = useProfile();
-  const { logs, exportLogs, clearLogs } = useLogContext();
   const [referral, setReferral] = useState<ReferralData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const {
-    athletes,
-    activeAthleteId,
-    setActiveAthlete,
-    createAthlete,
-    deleteAthlete,
-    refetch: refetchAthletes,
-  } = useAthletes();
-  const [athleteModalVisible, setAthleteModalVisible] = useState(false);
-  const [editingAthlete, setEditingAthlete] = useState<Athlete | null>(null);
 
   async function loadReferral() {
     try {
@@ -73,54 +56,8 @@ export default function ProfileScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([refetch(), loadReferral(), refetchAthletes()]);
+    await Promise.all([refetch(), loadReferral()]);
     setRefreshing(false);
-  }
-
-  function handleDeleteAthlete(athlete: Athlete) {
-    Alert.alert(
-      'Delete Athlete',
-      `Remove "${athlete.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteAthlete(athlete.id);
-            } catch {
-              Alert.alert('Error', 'Failed to delete athlete.');
-            }
-          },
-        },
-      ]
-    );
-  }
-
-  function openAthleteModal(athlete?: Athlete) {
-    setEditingAthlete(athlete ?? null);
-    setAthleteModalVisible(true);
-  }
-
-  async function handleAthleteModalSave(data: {
-    name: string;
-    age_group: string;
-    level: string;
-    sport: string;
-  }) {
-    try {
-      if (editingAthlete) {
-        await updateAthlete(editingAthlete.id, data);
-        await refetchAthletes();
-      } else {
-        const created = await createAthlete(data);
-        await setActiveAthlete(created.id);
-      }
-      setAthleteModalVisible(false);
-    } catch {
-      Alert.alert('Error', 'Failed to save athlete. Please try again.');
-    }
   }
 
   async function handleSignOut() {
@@ -145,12 +82,7 @@ export default function ProfileScreen() {
   }
 
   async function handleManageBilling() {
-    try {
-      // Open Apple's subscription management page
-      await Linking.openURL('https://apps.apple.com/account/subscriptions');
-    } catch {
-      Alert.alert('Error', 'Could not open subscription management. Please go to App Store → Settings → Subscriptions.');
-    }
+    await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
   }
 
   async function handleShareReferral() {
@@ -167,46 +99,6 @@ export default function ProfileScreen() {
     if (!dateStr) return 'Every Monday';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-
-  async function handleDeleteAccount() {
-    // Step 1: Initial warning
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account, all athletes, all swing analyses, and all uploaded videos. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete My Account',
-          style: 'destructive',
-          onPress: () => {
-            // Step 2: Final confirmation
-            Alert.alert(
-              'Are You Sure?',
-              'Your account and all associated data will be permanently removed. Your subscription will be cancelled if you have one. This cannot be reversed.',
-              [
-                { text: 'Keep My Account', style: 'cancel' },
-                {
-                  text: 'Yes, Delete Everything',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await deleteAccount();
-                      await signOut();
-                    } catch (err: any) {
-                      Alert.alert(
-                        'Error',
-                        err?.response?.data?.error || err?.message || 'Failed to delete account. Please try again.'
-                      );
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
   }
 
   const isPremium = profile?.subscription_status === 'premium';
@@ -250,82 +142,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Athletes section */}
-        <View style={styles.athletesCard}>
-          <View style={styles.athletesSectionHeader}>
-            <Ionicons name="people-outline" size={18} color={COLORS.accent} />
-            <Text style={styles.athletesSectionTitle}>Athletes</Text>
-          </View>
-
-          {athletes.map((athlete, index) => {
-            const initials = athlete.name
-              .split(' ')
-              .map((w) => w[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase();
-            const avatarColor = athlete.avatar_color ?? COLORS.accent;
-            const isActive = athlete.id === activeAthleteId;
-            return (
-              <React.Fragment key={athlete.id}>
-                {index > 0 && <View style={styles.athleteRowDivider} />}
-                <View style={styles.athleteRow}>
-                  <TouchableOpacity
-                    style={styles.athleteRowLeft}
-                    onPress={() => openAthleteModal(athlete)}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.athleteAvatar,
-                        { backgroundColor: `${avatarColor}26` },
-                        isActive && { borderColor: avatarColor, borderWidth: 2 },
-                      ]}
-                    >
-                      <Text style={[styles.athleteAvatarText, { color: avatarColor }]}>
-                        {initials}
-                      </Text>
-                    </View>
-                    <View style={styles.athleteInfo}>
-                      <Text style={styles.athleteName}>{athlete.name}</Text>
-                      <Text style={styles.athleteMeta}>
-                        {[athlete.sport, athlete.level, athlete.age_group]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                  <View style={styles.athleteRowActions}>
-                    <TouchableOpacity
-                      style={styles.athleteActionBtn}
-                      onPress={() => openAthleteModal(athlete)}
-                    >
-                      <Ionicons name="pencil-outline" size={16} color={COLORS.muted} />
-                    </TouchableOpacity>
-                    {athletes.length > 1 && (
-                      <TouchableOpacity
-                        style={styles.athleteActionBtn}
-                        onPress={() => handleDeleteAthlete(athlete)}
-                      >
-                        <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              </React.Fragment>
-            );
-          })}
-
-          <TouchableOpacity
-            style={styles.addAthleteButton}
-            onPress={() => openAthleteModal()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add-circle-outline" size={18} color={COLORS.accent} />
-            <Text style={styles.addAthleteButtonText}>Add Athlete</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Stats */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
@@ -366,7 +182,7 @@ export default function ProfileScreen() {
         {/* Manage subscription (premium users) */}
         {isPremium && (
           <TouchableOpacity style={styles.manageCard} onPress={handleManageBilling} activeOpacity={0.85}>
-            <Ionicons name="storefront-outline" size={20} color={COLORS.accent} />
+            <Ionicons name="card-outline" size={20} color={COLORS.accent} />
             <Text style={styles.manageText}>Manage Subscription</Text>
             <Ionicons name="open-outline" size={16} color={COLORS.muted} />
           </TouchableOpacity>
@@ -397,8 +213,6 @@ export default function ProfileScreen() {
           </View>
         )}
 
-
-
         {/* Settings sections */}
         <View style={styles.sectionCard}>
           <SettingsRow
@@ -420,61 +234,14 @@ export default function ProfileScreen() {
           />
         </View>
 
-        {/* Debug / Log Export section */}
-        <View style={styles.debugCard}>
-          <View style={styles.debugHeader}>
-            <Ionicons name="bug-outline" size={18} color={COLORS.muted} />
-            <Text style={styles.debugTitle}>Debug Logs</Text>
-            <Text style={styles.debugCount}>{logs.length} entries</Text>
-          </View>
-          <Text style={styles.debugSubtitle}>
-            Export logs to share with the team when reporting a crash or issue.
-          </Text>
-          <View style={styles.debugButtonRow}>
-            <TouchableOpacity
-              style={styles.exportButton}
-              onPress={exportLogs}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="share-outline" size={18} color="#000" style={{ marginRight: 6 }} />
-              <Text style={styles.exportButtonText}>Export Logs</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={() =>
-                Alert.alert('Clear Logs', 'Delete all stored debug logs?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Clear', style: 'destructive', onPress: clearLogs },
-                ])
-              }
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Sign out */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.85}>
           <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        {/* Delete account */}
-        <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount} activeOpacity={0.85}>
-          <Ionicons name="trash-outline" size={20} color={COLORS.muted} />
-          <Text style={styles.deleteAccountText}>Delete Account</Text>
-        </TouchableOpacity>
-
         <Text style={styles.version}>NextSport v1.0.0</Text>
       </ScrollView>
-
-      <AthleteModal
-        visible={athleteModalVisible}
-        athlete={editingAthlete}
-        onSave={handleAthleteModalSave}
-        onCancel={() => setAthleteModalVisible(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -701,65 +468,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
     marginHorizontal: 16,
   },
-  debugCard: {
-    backgroundColor: 'rgba(22,160,133,0.08)',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.accent,
-    marginBottom: 16,
-  },
-  debugHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  debugTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '700',
-    marginLeft: 8,
-    flex: 1,
-  },
-  debugCount: {
-    color: COLORS.muted,
-    fontSize: 12,
-  },
-  debugSubtitle: {
-    color: COLORS.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  debugButtonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  exportButton: {
-    flex: 1,
-    backgroundColor: COLORS.accent,
-    borderRadius: 10,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  exportButtonText: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  clearButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    backgroundColor: 'rgba(239,68,68,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -777,107 +485,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 8,
   },
-  deleteAccountButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    marginBottom: 24,
-  },
-  deleteAccountText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    marginLeft: 8,
-  },
   version: {
     color: COLORS.muted,
     fontSize: 12,
     textAlign: 'center',
-  },
-  // Athletes section
-  athletesCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-    overflow: 'hidden',
-    padding: 16,
-  },
-  athletesSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  athletesSectionTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
-  athleteRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  athleteRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  athleteAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  athleteAvatarText: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  athleteInfo: {
-    flex: 1,
-  },
-  athleteName: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  athleteMeta: {
-    color: COLORS.muted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  athleteRowActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  athleteActionBtn: {
-    padding: 6,
-  },
-  athleteRowDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 2,
-  },
-  addAthleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.3)',
-    backgroundColor: 'rgba(34,197,94,0.06)',
-    gap: 8,
-  },
-  addAthleteButtonText: {
-    color: COLORS.accent,
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

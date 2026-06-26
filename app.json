@@ -3,7 +3,7 @@
     "name": "NextSport",
     "slug": "nextsport",
     "scheme": "nextsport",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -18,7 +18,6 @@
         "backgroundColor": "#0a0f1e"
       },
       "package": "com.nextsport.app",
-      "versionCode": 11,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -28,28 +27,21 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nextsport.app",
-      "buildNumber": "6",
-      "infoPlist": {
-        "NSCameraUsageDescription": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are uploaded securely and used only for your personal analysis.",
-        "NSMicrophoneUsageDescription": "NextSport uses your microphone to capture audio when recording swing videos. Audio is included in your video upload and used only for analysis.",
-        "NSPhotoLibraryUsageDescription": "NextSport accesses your photo library so you can select an existing swing video for AI analysis. Only the video you choose is accessed — your other photos are never browsed or stored.",
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "bundleIdentifier": "com.nextsport.app"
     },
     "plugins": [
       [
         "expo-camera",
         {
-          "cameraPermission": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are used only for your personal analysis.",
-          "microphonePermission": "NextSport uses your microphone to capture audio when recording swing videos. Audio is used only for your personal analysis."
+          "cameraPermission": "Allow NextSport to access your camera to record swing videos.",
+          "microphonePermission": "Allow NextSport to access your microphone for video recording."
         }
       ],
-      "expo-iap"
+      "expo-av"
     ],
     "extra": {
       "eas": {
-        "projectId": "b9950d67-dd19-4d3d-9c5d-8e75ee3d7f7e"
+        "projectId": "e1793cb6-7ed7-4d1c-a9df-9939944527b6"
       }
     }
   }

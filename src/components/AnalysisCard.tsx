@@ -1,6 +1,5 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -8,8 +7,6 @@ import { COLORS } from '../theme';
 interface AnalysisCardProps {
   analysis: Analysis;
   onPress: () => void;
-  onDelete?: (id: string) => void;
-  showDeleteIcon?: boolean; // show trash icon inline (edit mode)
 }
 
 function getScoreColor(score: number | null): string {
@@ -21,9 +18,7 @@ function getScoreColor(score: number | null): string {
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  const datePart = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const timePart = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  return `${datePart} · ${timePart}`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function getStatusLabel(status: Analysis['status']): string {
@@ -36,46 +31,10 @@ function getStatusLabel(status: Analysis['status']): string {
   }
 }
 
-export default function AnalysisCard({ analysis, onPress, onDelete, showDeleteIcon }: AnalysisCardProps) {
+export default function AnalysisCard({ analysis, onPress }: AnalysisCardProps) {
   const scoreColor = getScoreColor(analysis.score);
-  const swipeableRef = useRef<Swipeable>(null);
 
-  const handleDelete = () => {
-    swipeableRef.current?.close();
-    Alert.alert(
-      'Delete Analysis',
-      'Are you sure you want to delete this analysis? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete?.(analysis.id),
-        },
-      ]
-    );
-  };
-
-  const renderRightActions = (
-    _progress: Animated.AnimatedInterpolation<number>,
-    dragX: Animated.AnimatedInterpolation<number>
-  ) => {
-    const scale = dragX.interpolate({
-      inputRange: [-80, 0],
-      outputRange: [1, 0.7],
-      extrapolate: 'clamp',
-    });
-    return (
-      <TouchableOpacity style={styles.deleteAction} onPress={handleDelete} activeOpacity={0.85}>
-        <Animated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
-          <Ionicons name="trash-outline" size={22} color="#fff" />
-          <Text style={styles.deleteActionText}>Delete</Text>
-        </Animated.View>
-      </TouchableOpacity>
-    );
-  };
-
-  const card = (
+  return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
       <View style={styles.left}>
         <View style={[styles.scoreBadge, { borderColor: scoreColor }]}>
@@ -89,38 +48,16 @@ export default function AnalysisCard({ analysis, onPress, onDelete, showDeleteIc
       <View style={styles.middle}>
         <Text style={styles.dateText}>{formatDate(analysis.created_at)}</Text>
         <Text style={styles.statusText}>{getStatusLabel(analysis.status)}</Text>
-        {analysis.feedback && !analysis.feedback.trim().startsWith('{') ? (
+        {analysis.feedback ? (
           <Text style={styles.preview} numberOfLines={2}>
-            {analysis.feedback.replace(/\{[^}]*\}/g, '').trim().slice(0, 100)}
+            {analysis.feedback.slice(0, 80)}…
           </Text>
         ) : null}
       </View>
       <View style={styles.right}>
-        {showDeleteIcon ? (
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={handleDelete}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
-          </TouchableOpacity>
-        ) : (
-          <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
-        )}
+        <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
       </View>
     </TouchableOpacity>
-  );
-
-  return (
-    <Swipeable
-      ref={swipeableRef}
-      renderRightActions={onDelete ? renderRightActions : undefined}
-      rightThreshold={40}
-      overshootRight={false}
-      friction={2}
-    >
-      {card}
-    </Swipeable>
   );
 }
 
@@ -172,24 +109,5 @@ const styles = StyleSheet.create({
   },
   right: {
     marginLeft: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtn: {
-    padding: 4,
-  },
-  deleteAction: {
-    backgroundColor: '#ef4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 80,
-    marginBottom: 10,
-    borderRadius: 14,
-  },
-  deleteActionText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
   },
 });

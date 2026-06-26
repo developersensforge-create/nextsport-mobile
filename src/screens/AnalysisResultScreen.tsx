@@ -1,353 +1,146 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
   Share,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { Audio } from 'expo-av';
+import * as Sharing from 'expo-sharing';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
-import { summarizeAnalysisForLog } from '../lib/analysisDebug';
-import { logger } from '../lib/logger';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type ResultNavProp = StackNavigationProp<RootStackParamList, 'AnalysisResult'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'AnalysisResult'>;
 
-function normalizeFeedbackItem(item: string) {
-  return item.replace(/^[\s\-•\d\.)]+/, '').trim();
-}
-
-type ParsedImprovement = {
-  title: string | null;
-  issue: string;
-  fix: string | null;
-};
-
-function parseImprovementItem(item: string): ParsedImprovement {
-  const normalized = normalizeFeedbackItem(item);
-  const objectLikeMatch = normalized.match(
-    /^\{\s*(['"])(.*?)\1\s*:\s*(['"])([\s\S]*?)\3\s*,\s*(['"])fix\5\s*:\s*(['"])([\s\S]*?)\6\s*\}$/i
-  );
-
-  if (objectLikeMatch) {
-    return {
-      title: objectLikeMatch[2].trim(),
-      issue: objectLikeMatch[4].trim(),
-      fix: objectLikeMatch[7].trim(),
-    };
+function ScoreGauge({ score }: { score: number }) {
+  function getColor() {
+    if (score >= 80) return COLORS.accent;
+    if (score >= 60) return '#f59e0b';
+    return '#ef4444';
   }
-
-  return {
-    title: null,
-    issue: normalized,
-    fix: null,
-  };
-}
-
-function ResultVideoPlayer({
-  url,
-  onError,
-}: {
-  url: string;
-  onError: () => void;
-}) {
-  const VideoViewComponent = VideoView as unknown as React.ComponentType<any>;
-  const player = useVideoPlayer(url, (videoPlayer) => {
-    videoPlayer.loop = false;
-  });
-
-  useEffect(() => {
-    const subscription = player.addListener('statusChange', ({ error }) => {
-      if (error) {
-        onError();
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [player, onError]);
-
+  function getLabel() {
+    if (score >= 90) return 'Elite';
+    if (score >= 80) return 'Excellent';
+    if (score >= 70) return 'Good';
+    if (score >= 60) return 'Average';
+    if (score >= 50) return 'Below Average';
+    return 'Needs Work';
+  }
+  const color = getColor();
   return (
-    <VideoViewComponent
-      player={player}
-      style={styles.swingVideo}
-      nativeControls
-      contentFit="contain"
-      surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
-    />
+    <View style={gaugeStyles.container}>
+      <View style={[gaugeStyles.circle, { borderColor: color }]}>
+        <Text style={[gaugeStyles.number, { color }]}>{score}</Text>
+        <Text style={[gaugeStyles.outOf, { color }]}>/100</Text>
+      </View>
+      <Text style={[gaugeStyles.label, { color }]}>{getLabel()}</Text>
+    </View>
   );
 }
+
+const gaugeStyles = StyleSheet.create({
+  container: { alignItems: 'center', marginVertical: 24 },
+  circle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  number: { fontSize: 40, fontWeight: '900' },
+  outOf: { fontSize: 13, fontWeight: '500', marginTop: -4 },
+  label: { fontSize: 16, fontWeight: '700', marginTop: 8 },
+});
 
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
   const route = useRoute<ResultRouteProp>();
-  const { analysisId, poll, prefetchedData } = route.params;
+  const { analysisId, poll } = route.params;
 
-  // Initialize directly from prefetchedData if available — avoids async state update crash
-  const [analysis, setAnalysis] = useState<Analysis | null>(prefetchedData ?? null);
-  const [loading, setLoading] = useState(!prefetchedData);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [videoPlayable, setVideoPlayable] = useState(true);
-  const [videoRefreshLoading, setVideoRefreshLoading] = useState(false);
-
-  const TAG = 'AnalysisResultScreen';
-  const loadGeneration = useRef(0);
-  const renderCount = useRef(0);
-  const autoRefreshFired = useRef(false);
-  const refreshInFlight = useRef(false);
-  const redirectingAwayRef = useRef(false);
-
-  renderCount.current += 1;
-
-  const resultVideoUrl = useMemo(() => {
-    const raw = analysis?.result_video_url;
-    if (typeof raw !== 'string') return null;
-    const trimmed = raw.trim();
-    if (!trimmed || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
-      return null;
-    }
-    if (!/^https?:\/\//i.test(trimmed)) {
-      logger.warn(TAG, 'result video URL is not a valid http(s) URL', {
-        result_video_url_len: trimmed.length,
-        result_video_url_prefix: trimmed.slice(0, 24),
-      });
-      return null;
-    }
-    return trimmed;
-  }, [analysis]);
-
-  const refreshResultVideo = useCallback(async () => {
-    if (refreshInFlight.current) return;
-    refreshInFlight.current = true;
-    setVideoRefreshLoading(true);
-    try {
-      logger.info(TAG, 'refreshResultVideo: fetching latest analysis', { analysisId });
-      const latest = await getAnalysis(analysisId);
-      setAnalysis(latest);
-      logger.info(TAG, 'refreshResultVideo: latest fetched', {
-        summary: summarizeAnalysisForLog(latest),
-      });
-    } catch (err) {
-      logger.warn(TAG, 'refreshResultVideo: failed', err);
-    } finally {
-      refreshInFlight.current = false;
-      setVideoRefreshLoading(false);
-    }
-  }, [analysisId]);
-
-  useEffect(() => {
-    setVideoPlayable(true);
-  }, [resultVideoUrl]);
-
-  useEffect(() => {
-    if (!prefetchedData || resultVideoUrl || autoRefreshFired.current) return;
-    autoRefreshFired.current = true;
-    const t = setTimeout(() => {
-      refreshResultVideo();
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [prefetchedData, resultVideoUrl, refreshResultVideo]);
-
-  useEffect(() => {
-    logger.info(TAG, 'screen lifecycle: committed render', {
-      renderCount: renderCount.current,
-      loading,
-      hasError: !!error,
-      hasAnalysis: !!analysis,
-      status: analysis?.status ?? null,
-    });
-  });
-
-  useEffect(() => {
-    logger.info(TAG, 'mounted', {
-      analysisId,
-      poll: poll ?? false,
-      hasPrefetch: !!prefetchedData,
-      prefetchSummary: summarizeAnalysisForLog(prefetchedData ?? null),
-    });
-    return () => {
-      logger.info(TAG, 'unmounted', {
-        analysisId,
-        renderCount: renderCount.current,
-      });
-    };
-  }, [analysisId, poll, prefetchedData]);
-
-  useEffect(() => {
-    const unsubFocus = navigation.addListener('focus', () => {
-      logger.info(TAG, 'nav event: focus', { analysisId });
-      redirectingAwayRef.current = false;
-    });
-    const unsubBlur = navigation.addListener('blur', () => {
-      logger.info(TAG, 'nav event: blur', { analysisId });
-    });
-    const unsubBeforeRemove = navigation.addListener('beforeRemove', (e: any) => {
-      logger.info(TAG, 'nav event: beforeRemove', {
-        analysisId,
-        actionType: e?.data?.action?.type,
-      });
-      if (Platform.OS !== 'android' || redirectingAwayRef.current) return;
-      const actionType = e?.data?.action?.type;
-      if (actionType === 'GO_BACK' || actionType === 'POP') {
-        e.preventDefault();
-        redirectingAwayRef.current = true;
-        logger.info(TAG, 'nav event: beforeRemove intercepted on Android', {
-          analysisId,
-          actionType,
-        });
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' }],
-        });
-      }
-    });
-    const unsubTransitionStart = navigation.addListener('transitionStart' as never, (e: any) => {
-      logger.info(TAG, 'nav event: transitionStart', {
-        analysisId,
-        closing: e?.data?.closing,
-      });
-    });
-    const unsubTransitionEnd = navigation.addListener('transitionEnd' as never, (e: any) => {
-      logger.info(TAG, 'nav event: transitionEnd', {
-        analysisId,
-        closing: e?.data?.closing,
-      });
-    });
-    return () => {
-      unsubFocus();
-      unsubBlur();
-      unsubBeforeRemove();
-      unsubTransitionStart();
-      unsubTransitionEnd();
-    };
-  }, [navigation, analysisId]);
-
-  useEffect(() => {
-    if (loading) {
-      logger.info(TAG, 'render→loading', { analysisId, poll: poll ?? false });
-      return;
-    }
-    if (error || !analysis) {
-      logger.info(TAG, 'render→error or missing analysis', {
-        analysisId,
-        error,
-        summary: summarizeAnalysisForLog(analysis ?? null),
-      });
-      return;
-    }
-    if (analysis.status === 'failed') {
-      logger.info(TAG, 'render→failed status', {
-        analysisId,
-        summary: summarizeAnalysisForLog(analysis),
-      });
-      return;
-    }
-    logger.info(TAG, 'render→success body', {
-      analysisId,
-      summary: summarizeAnalysisForLog(analysis),
-      resolvedVideoUrl: !!resultVideoUrl,
-      videoPlayable,
-    });
-  }, [loading, error, analysis, analysisId, poll, resultVideoUrl, videoPlayable]);
-
-  useLayoutEffect(() => {
-    if (loading || error || !analysis || analysis.status === 'failed') return;
-    logger.info(TAG, 'layout: main result UI (sync, before paint)', {
-      analysisId,
-      summary: summarizeAnalysisForLog(analysis),
-      showVideoPlayer: !!(resultVideoUrl && videoPlayable),
-      resultVideoUrlResolved: !!resultVideoUrl,
-      videoPlayable,
-    });
-  }, [loading, error, analysis, analysisId, resultVideoUrl, videoPlayable]);
-
-  useEffect(() => {
-    if (!analysis || analysis.status === 'failed') return;
-    const check = (label: 'strengths' | 'improvements', arr: unknown) => {
-      if (!Array.isArray(arr)) {
-        logger.warn(TAG, `${label} is not an array`, { type: typeof arr });
-        return;
-      }
-      const bad = arr.findIndex((x) => typeof x !== 'string');
-      if (bad >= 0) {
-        logger.warn(TAG, `${label} contains non-string at index ${bad}`, {
-          types: arr.slice(0, 10).map((x) => typeof x),
-        });
-      }
-    };
-    check('strengths', analysis.strengths);
-    check('improvements', analysis.improvements);
-  }, [analysis]);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const gen = ++loadGeneration.current;
       setLoading(true);
       setError(null);
-      logger.info(TAG, `load: starting — analysisId=${analysisId} poll=${poll} hasPrefetch=${!!prefetchedData} gen=${gen}`);
       try {
-        // If prefetched data was passed via navigation params, use it directly
-        // to avoid a redundant API call (which can cause crashes under memory pressure)
-        if (prefetchedData) {
-          logger.info(TAG, 'load: using prefetchedData — skipping getAnalysis call', {
-            gen,
-            summary: summarizeAnalysisForLog(prefetchedData),
-          });
-          if (gen !== loadGeneration.current) return;
-          setAnalysis(prefetchedData);
-          setLoading(false);
-          logger.info(TAG, 'load: prefetch path done', { gen, summary: summarizeAnalysisForLog(prefetchedData) });
-          return;
-        }
         if (poll) {
-          logger.info(TAG, 'load: entering pollAnalysis loop', { gen });
           const result = await pollAnalysis(analysisId);
-          logger.info(TAG, 'load: pollAnalysis complete', {
-            gen,
-            status: result.status,
-            summary: summarizeAnalysisForLog(result),
-          });
-          if (gen !== loadGeneration.current) return;
           setAnalysis(result);
         } else {
-          logger.info(TAG, 'load: fetching single analysis', { gen });
           const result = await getAnalysis(analysisId);
-          logger.info(TAG, 'load: getAnalysis done', {
-            gen,
-            status: result.status,
-            summary: summarizeAnalysisForLog(result),
-          });
-          if (gen !== loadGeneration.current) return;
           setAnalysis(result);
         }
       } catch (err: any) {
-        logger.error(TAG, `load: FAILED to load analysis (gen=${gen})`, err);
-        if (gen !== loadGeneration.current) return;
         setError(err.message ?? 'Failed to load analysis.');
       } finally {
-        if (gen === loadGeneration.current) {
-          setLoading(false);
-          logger.info(TAG, 'load: finally — loading=false', { gen });
-        }
+        setLoading(false);
       }
     }
     load();
-  }, [analysisId, poll, prefetchedData]);
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [analysisId, poll]);
+
+  async function toggleAudio() {
+    if (!analysis?.audio_url) return;
+
+    if (sound) {
+      if (isPlaying) {
+        await sound.pauseAsync();
+        setIsPlaying(false);
+      } else {
+        await sound.playAsync();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    setAudioLoading(true);
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: analysis.audio_url },
+        { shouldPlay: true }
+      );
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+        }
+      });
+      setSound(newSound);
+      setIsPlaying(true);
+    } catch (err: any) {
+      Alert.alert('Audio Error', 'Could not play audio feedback.');
+    } finally {
+      setAudioLoading(false);
+    }
+  }
 
   async function handleShare() {
     if (!analysis) return;
-    const message = `🏈 My NextSport swing analysis is in!\n\nGet your own AI swing analysis at nextsport.vercel.app`;
+    const scoreText = analysis.score ? `Score: ${analysis.score}/100` : '';
+    const message = `🏈 My NextSport swing analysis is in!\n${scoreText}\n\nGet your own AI swing analysis at nextsport.vercel.app`;
     try {
       await Share.share({ message });
     } catch {
@@ -355,26 +148,7 @@ export default function AnalysisResultScreen() {
     }
   }
 
-  const exitToHome = useCallback(() => {
-    if (redirectingAwayRef.current) return;
-    redirectingAwayRef.current = true;
-    logger.info(TAG, 'exitToHome: resetting navigation to MainTabs', { analysisId });
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs' }],
-    });
-  }, [analysisId, navigation]);
-
   function handleAnalyzeAnother() {
-    if (Platform.OS === 'android') {
-      redirectingAwayRef.current = true;
-      logger.info(TAG, 'handleAnalyzeAnother: resetting stack to Record on Android', { analysisId });
-      navigation.reset({
-        index: 1,
-        routes: [{ name: 'MainTabs' }, { name: 'Record' }],
-      });
-      return;
-    }
     navigation.navigate('Record');
   }
 
@@ -418,7 +192,7 @@ export default function AnalysisResultScreen() {
           <Ionicons name="close-circle" size={56} color={COLORS.danger} />
           <Text style={styles.errorTitle}>Analysis Failed</Text>
           <Text style={styles.errorText}>
-            Server processing failed. Please try again — if this keeps happening, try a shorter video (under 15 seconds).
+            We couldn't process your video. Please try recording again with better lighting.
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={handleAnalyzeAnother}>
             <Text style={styles.retryButtonText}>Try Again</Text>
@@ -428,13 +202,13 @@ export default function AnalysisResultScreen() {
     );
   }
 
-  const strengths = (analysis.strengths ?? []).map(normalizeFeedbackItem).filter(Boolean);
-  const improvements = (analysis.improvements ?? []).map(parseImprovementItem).filter((item) => item.issue);
+  // Parse feedback sections
+  const feedbackSections = parseFeedback(analysis.feedback);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={Platform.OS === 'android' ? exitToHome : () => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Swing Analysis</Text>
@@ -448,94 +222,50 @@ export default function AnalysisResultScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Annotated video — null-guarded */}
-        {!!resultVideoUrl && videoPlayable && (
-          <View style={styles.videoSection}>
-            <Text style={styles.videoLabel}>📹 Your Annotated Swing</Text>
-            <Text style={styles.videoSubLabel}>Slow motion with coaching cues</Text>
-            <ResultVideoPlayer
-              url={resultVideoUrl}
-              onError={() => {
-                logger.error(TAG, 'Result video failed to load', {
-                  result_video_url: resultVideoUrl,
-                });
-                setVideoPlayable(false);
-              }}
-            />
-          </View>
+        {/* Score */}
+        {analysis.score !== null && <ScoreGauge score={analysis.score} />}
+
+        {/* Audio feedback */}
+        {analysis.audio_url && (
+          <TouchableOpacity
+            style={styles.audioCard}
+            onPress={toggleAudio}
+            activeOpacity={0.85}
+          >
+            {audioLoading ? (
+              <ActivityIndicator size="small" color={COLORS.accent} />
+            ) : (
+              <Ionicons
+                name={isPlaying ? 'pause-circle' : 'play-circle'}
+                size={36}
+                color={COLORS.accent}
+              />
+            )}
+            <View style={styles.audioInfo}>
+              <Text style={styles.audioTitle}>Audio Feedback</Text>
+              <Text style={styles.audioSubtitle}>
+                {isPlaying ? 'Playing…' : 'Tap to listen to your coaching feedback'}
+              </Text>
+            </View>
+            <Ionicons name="volume-high" size={20} color={COLORS.muted} />
+          </TouchableOpacity>
         )}
 
-        {!!resultVideoUrl && !videoPlayable && (
+        {/* Feedback sections */}
+        {feedbackSections.length > 0 ? (
+          feedbackSections.map((section, i) => (
+            <View key={i} style={styles.feedbackCard}>
+              {section.title ? (
+                <Text style={styles.feedbackTitle}>{section.title}</Text>
+              ) : null}
+              <Text style={styles.feedbackBody}>{section.body}</Text>
+            </View>
+          ))
+        ) : analysis.feedback ? (
           <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>Video Unavailable</Text>
-            <Text style={styles.feedbackBody}>
-              We could not load the annotated video on this device. Your analysis text is still available below.
-            </Text>
+            <Text style={styles.feedbackBody}>{analysis.feedback}</Text>
           </View>
-        )}
-
-        {!resultVideoUrl && (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>🎬 Annotated Video Processing</Text>
-            <Text style={styles.feedbackBody}>
-              Your AI coaching video is being generated. This usually takes 5–10 minutes. Come back later and tap "Check Again" — it'll be ready soon!
-            </Text>
-            <TouchableOpacity
-              style={[styles.retryButton, videoRefreshLoading && { opacity: 0.6 }]}
-              onPress={refreshResultVideo}
-              disabled={videoRefreshLoading}
-            >
-              <Text style={styles.retryButtonText}>{videoRefreshLoading ? 'Checking…' : 'Check Again'}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Strengths */}
-        {strengths.length > 0 && (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>Strengths 💪</Text>
-            {strengths.map((item, i) => (
-              <View key={i} style={styles.bulletRow}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>{item}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Areas to Improve */}
-        {improvements.length > 0 && (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.cardTitle}>Areas to Improve 🎯</Text>
-            <Text style={styles.sectionHint}>Focus on these next to make the biggest difference.</Text>
-            {improvements.map((item, i) => (
-              <View key={i} style={styles.improvementCard}>
-                <View style={styles.improvementBadge}>
-                  <Text style={styles.improvementBadgeText}>{i + 1}</Text>
-                </View>
-                <View style={styles.improvementContent}>
-                  {!!item.title && <Text style={styles.improvementTitle}>{item.title}</Text>}
-                  <Text style={styles.improvementText}>{item.issue}</Text>
-                  {!!item.fix && (
-                    <View style={styles.improvementFixBox}>
-                      <Text style={styles.improvementFixLabel}>Suggested Fix</Text>
-                      <Text style={styles.improvementFixText}>{item.fix}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Empty state if nothing to show */}
-        {strengths.length === 0 && improvements.length === 0 && (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.feedbackBody}>
-              Analysis complete. Detailed feedback will appear here once available.
-            </Text>
-          </View>
-        )}
+        ) : null}
 
         {/* Actions */}
         <TouchableOpacity
@@ -554,6 +284,39 @@ export default function AnalysisResultScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function parseFeedback(feedback: string | null): Array<{ title?: string; body: string }> {
+  if (!feedback) return [];
+
+  // Try to detect sections with headers like "**Title:**" or "## Title"
+  const headerRegex = /\*\*(.+?)\*\*[:\n]/g;
+  const matches = [...feedback.matchAll(headerRegex)];
+
+  if (matches.length === 0) {
+    // No structured headers — split by double newlines into paragraphs
+    const paragraphs = feedback.split(/\n\n+/).filter((p) => p.trim().length > 0);
+    return paragraphs.map((p) => ({ body: p.trim() }));
+  }
+
+  const sections: Array<{ title?: string; body: string }> = [];
+  let lastIndex = 0;
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const matchIndex = match.index ?? 0;
+    const title = match[1];
+
+    const bodyStart = matchIndex + match[0].length;
+    const bodyEnd = i + 1 < matches.length ? (matches[i + 1].index ?? feedback.length) : feedback.length;
+    const body = feedback.slice(bodyStart, bodyEnd).trim();
+
+    if (body) {
+      sections.push({ title, body });
+    }
+  }
+
+  return sections;
 }
 
 const styles = StyleSheet.create({
@@ -642,6 +405,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  audioCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.3)',
+    marginBottom: 16,
+  },
+  audioInfo: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  audioTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  audioSubtitle: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
   feedbackCard: {
     backgroundColor: COLORS.card,
     borderRadius: 14,
@@ -650,11 +437,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  cardTitle: {
+  feedbackTitle: {
     color: COLORS.accent,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 10,
+    marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -662,90 +449,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 15,
     lineHeight: 23,
-  },
-  sectionHint: {
-    color: COLORS.muted,
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 12,
-  },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  bullet: {
-    color: COLORS.accent,
-    fontSize: 16,
-    marginRight: 8,
-    lineHeight: 23,
-  },
-  bulletText: {
-    color: COLORS.text,
-    fontSize: 15,
-    lineHeight: 23,
-    flex: 1,
-  },
-  improvementCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(34,197,94,0.08)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.18)',
-  },
-  improvementContent: {
-    flex: 1,
-  },
-  improvementBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-    marginTop: 1,
-  },
-  improvementBadgeText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  improvementTitle: {
-    color: COLORS.accent,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  improvementText: {
-    color: COLORS.text,
-    fontSize: 15,
-    lineHeight: 22,
-    flex: 1,
-  },
-  improvementFixBox: {
-    marginTop: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  improvementFixLabel: {
-    color: COLORS.accent,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 4,
-  },
-  improvementFixText: {
-    color: COLORS.text,
-    fontSize: 14,
-    lineHeight: 21,
   },
   analyzeAnotherButton: {
     backgroundColor: COLORS.accent,
@@ -776,28 +479,5 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     fontSize: 15,
     fontWeight: '600',
-  },
-  videoSection: {
-    marginBottom: 24,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
-    padding: 16,
-  },
-  videoLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  videoSubLabel: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 12,
-  },
-  swingVideo: {
-    width: '100%',
-    height: 220,
-    borderRadius: 8,
-    backgroundColor: '#000',
   },
 });

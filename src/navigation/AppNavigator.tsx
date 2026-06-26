@@ -15,10 +15,7 @@ import AnalysisResultScreen from '../screens/AnalysisResultScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import DrillsScreen from '../screens/DrillsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
-import AnalysisHistoryScreen from '../screens/AnalysisHistoryScreen';
-import TrainingFocusScreen from '../screens/TrainingFocusScreen';
 import { COLORS } from '../theme';
-import type { Analysis } from '../lib/api';
 
 export type MainTabParamList = {
   Home: undefined;
@@ -28,11 +25,9 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  Record: { mode?: 'record' | 'upload'; athleteId?: string } | undefined;
-  AnalysisResult: { analysisId: string; poll?: boolean; prefetchedData?: Analysis | null };
+  Record: { mode?: 'record' | 'upload' } | undefined;
+  AnalysisResult: { analysisId: string; poll?: boolean };
   Paywall: undefined;
-  AnalysisHistory: undefined;
-  TrainingFocus: undefined;
 };
 
 export type AuthStackParamList = {
@@ -109,14 +104,6 @@ function AppStack() {
         name="Paywall"
         component={PaywallScreen}
         options={{ presentation: 'modal' }}
-      />
-      <RootStack.Screen
-        name="AnalysisHistory"
-        component={AnalysisHistoryScreen}
-      />
-      <RootStack.Screen
-        name="TrainingFocus"
-        component={TrainingFocusScreen}
       />
     </RootStack.Navigator>
   );

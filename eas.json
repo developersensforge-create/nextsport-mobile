@@ -11,38 +11,13 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "ios": {
-        "distribution": "store",
-        "buildConfiguration": "Release"
       }
     },
     "production": {
-      "autoIncrement": true,
-      "distribution": "store",
-      "ios": {
-        "buildConfiguration": "Release",
-        "credentialsSource": "remote"
-      }
-    },
-    "play-store": {
-      "distribution": "store",
-      "android": {
-        "buildType": "app-bundle"
-      },
-      "ios": {
-        "distribution": "store",
-        "buildConfiguration": "Release"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "appleId": "developer@sensforge.com",
-        "ascAppId": "6762205769",
-        "appleTeamId": "58BKXDS287"
-      }
-    }
+    "production": {}
   }
 }

@@ -1,35 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import {
-  getProducts,
-  requestSubscription,
-  getAvailablePurchases,
-  finishTransaction,
-  type ProductIOS,
-  type SubscriptionIOS,
-  type PurchaseError,
-} from 'expo-iap';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { getAuthHeaders } from '../lib/api';
 
 type PaywallNavProp = StackNavigationProp<RootStackParamList, 'Paywall'>;
-
-const BASE_URL = 'https://nextsport-sensforge.vercel.app';
-const PRODUCT_ID = 'nextsport';
 
 const FEATURES = [
   {
@@ -61,109 +46,10 @@ const FEATURES = [
 
 export default function PaywallScreen() {
   const navigation = useNavigation<PaywallNavProp>();
-  const [loading, setLoading] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [product, setProduct] = useState<ProductIOS | SubscriptionIOS | null>(null);
-
-  useEffect(() => {
-    loadProduct();
-  }, []);
-
-  async function loadProduct() {
-    try {
-      const products = await getProducts({ skus: [PRODUCT_ID] });
-      if (products && products.length > 0) {
-        setProduct(products[0]);
-      }
-    } catch (err) {
-      // Non-fatal: fall back to hardcoded price copy
-      console.warn('IAP product load failed:', err);
-    }
-  }
-
-  async function verifyWithBackend(transactionId: string, receiptData: string) {
-    const headers = await getAuthHeaders();
-    const res = await fetch(`${BASE_URL}/api/apple/verify-receipt`, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        transaction_id: transactionId,
-        receipt_data: receiptData,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || 'Receipt verification failed');
-    }
-    return res.json();
-  }
 
   async function handleSubscribe() {
-    if (Platform.OS !== 'ios') {
-      Alert.alert('iOS Only', 'Apple subscriptions are available on iPhone and iPad only.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const purchase = await requestSubscription({ sku: PRODUCT_ID });
-      if (purchase) {
-        const transactionId = purchase.transactionId ?? '';
-        const receiptData =
-          (purchase as any).transactionReceipt ?? (purchase as any).originalJson ?? '';
-        await verifyWithBackend(transactionId, receiptData);
-        await finishTransaction({ purchase, isConsumable: false });
-        Alert.alert(
-          'Welcome to Premium! 🎉',
-          'Your subscription is active. Unlimited swing analyses and AI coaching are now unlocked.',
-          [{ text: 'Let\'s Go', onPress: () => navigation.goBack() }]
-        );
-      }
-    } catch (err: any) {
-      const purchaseError = err as PurchaseError;
-      if (purchaseError?.code === 'E_USER_CANCELLED') {
-        // User cancelled — no alert needed
-        return;
-      }
-      Alert.alert(
-        'Purchase Failed',
-        purchaseError?.message || 'Could not complete your purchase. Please try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
+    await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
   }
-
-  async function handleRestore() {
-    setRestoring(true);
-    try {
-      const purchases = await getAvailablePurchases();
-      const premium = purchases?.find((p) => p.productId === PRODUCT_ID);
-      if (premium) {
-        const transactionId = premium.transactionId ?? '';
-        const receiptData =
-          (premium as any).transactionReceipt ?? (premium as any).originalJson ?? '';
-        await verifyWithBackend(transactionId, receiptData);
-        Alert.alert(
-          'Subscription Restored',
-          'Your Premium subscription has been restored.',
-          [{ text: 'Great', onPress: () => navigation.goBack() }]
-        );
-      } else {
-        Alert.alert(
-          'No Subscription Found',
-          'We couldn\'t find an active Premium subscription linked to your Apple ID.'
-        );
-      }
-    } catch (err: any) {
-      Alert.alert('Restore Failed', err?.message || 'Could not restore purchases. Please try again.');
-    } finally {
-      setRestoring(false);
-    }
-  }
-
-  // Prefer live price from App Store; fallback to hardcoded
-  const priceDisplay =
-    (product as any)?.localizedPrice ?? '$14.99';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -192,7 +78,7 @@ export default function PaywallScreen() {
         {/* Pricing badge */}
         <View style={styles.pricingCard}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>{priceDisplay}</Text>
+            <Text style={styles.price}>$14.99</Text>
             <Text style={styles.pricePer}>/month</Text>
           </View>
           <Text style={styles.pricingNote}>Cancel anytime. No commitment.</Text>
@@ -227,32 +113,14 @@ export default function PaywallScreen() {
           style={styles.subscribeButton}
           onPress={handleSubscribe}
           activeOpacity={0.85}
-          disabled={loading || restoring}
         >
           <Ionicons name="star" size={20} color="#000" style={{ marginRight: 10 }} />
-          {loading
-            ? <ActivityIndicator color="#000" />
-            : <Text style={styles.subscribeButtonText}>Subscribe for {priceDisplay}/mo</Text>
-          }
+          <Text style={styles.subscribeButtonText}>Subscribe for $14.99/mo</Text>
         </TouchableOpacity>
 
         <Text style={styles.legalText}>
-          Payment will be charged to your Apple ID at confirmation of purchase. Subscription
-          automatically renews unless auto-renew is turned off at least 24 hours before the end of
-          the current period. Manage or cancel in App Store → Settings → Subscriptions.
+          Payment processed securely via Stripe. You'll be taken to our website to complete the subscription. Cancel anytime from your account settings.
         </Text>
-
-        {/* Restore purchases */}
-        <TouchableOpacity
-          style={styles.restoreButton}
-          onPress={handleRestore}
-          disabled={loading || restoring}
-        >
-          {restoring
-            ? <ActivityIndicator color={COLORS.muted} size="small" />
-            : <Text style={styles.restoreText}>Restore Purchases</Text>
-          }
-        </TouchableOpacity>
 
         <TouchableOpacity style={styles.noThanksButton} onPress={() => navigation.goBack()}>
           <Text style={styles.noThanksText}>Not now</Text>
@@ -419,17 +287,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
-    marginBottom: 12,
-  },
-  restoreButton: {
-    alignItems: 'center',
-    padding: 10,
-    marginBottom: 4,
-  },
-  restoreText: {
-    color: COLORS.muted,
-    fontSize: 13,
-    textDecorationLine: 'underline',
+    marginBottom: 16,
   },
   noThanksButton: {
     alignItems: 'center',

@@ -1,14 +1,11 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  InteractionManager,
-  Linking,
   Platform,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,15 +14,8 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as IntentLauncher from 'expo-intent-launcher';
-import * as Sharing from 'expo-sharing';
-// Audio permission is handled by expo-camera during video recording
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { Video, ResizeMode } from 'expo-av';
 import { submitAnalysis } from '../lib/api';
-import { summarizeAnalysisForLog } from '../lib/analysisDebug';
-import VideoTrimSlider from '../components/VideoTrimSlider';
-import { logger } from '../lib/logger';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -35,543 +25,92 @@ type RecordRouteProp = RouteProp<RootStackParamList, 'Record'>;
 
 const TOKEN_COST = 10;
 
-function getVideoFileExtension(uri: string, mimeType: string | null | undefined) {
-  const normalizedMime = (mimeType ?? '').toLowerCase();
-  if (normalizedMime.includes('quicktime')) return '.mov';
-  if (normalizedMime.includes('3gpp')) return '.3gp';
-  if (normalizedMime.includes('mp4')) return '.mp4';
-  if (normalizedMime.includes('mpeg')) return '.mpeg';
-
-  const extMatch = uri.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
-  return extMatch ? `.${extMatch[1].toLowerCase()}` : '.mp4';
-}
-
-async function materializeAndroidVideoForPreview(uri: string, mimeType: string | null | undefined) {
-  const extension = getVideoFileExtension(uri, mimeType);
-  const targetUri = `${FileSystem.cacheDirectory}picked-preview-${Date.now()}${extension}`;
-  await FileSystem.copyAsync({ from: uri, to: targetUri });
-  return targetUri;
-}
-
-function SelectedVideoPreview({
-  player,
-  onError,
-}: {
-  player: ReturnType<typeof useVideoPlayer>;
-  onError: () => void;
-}) {
-  const VideoViewComponent = VideoView as unknown as React.ComponentType<any>;
-
-  useEffect(() => {
-    const subscription = player.addListener('statusChange', ({ error }: any) => {
-      if (error) {
-        onError();
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [player, onError]);
-
-  return (
-    <VideoViewComponent
-      player={player}
-      style={styles.videoPreview}
-      nativeControls
-      contentFit="contain"
-      surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
-    />
-  );
-}
-
 export default function RecordScreen() {
   const navigation = useNavigation<RecordNavProp>();
   const route = useRoute<RecordRouteProp>();
   const initialMode = route.params?.mode ?? 'record';
-  const athleteId = route.params?.athleteId;
 
   const [permission, requestPermission] = useCameraPermissions();
-  const [permissionExplainer, setPermissionExplainer] = useState<'camera' | 'photos' | null>(null);
   const [mode, setMode] = useState<'record' | 'upload'>(initialMode);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const [isRecording, setIsRecording] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState<string>('video/mp4');
-  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
-  const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
-  const [previewPlayable, setPreviewPlayable] = useState(true);
-  const [trimStart, setTrimStart] = useState<number>(0);
-  const [trimEnd, setTrimEnd] = useState<number | null>(null); // null until duration known
-
-  // Disable swipe-back gesture when video is loaded — prevents timeline touch from triggering nav
-  useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !videoUri });
-  }, [navigation, videoUri]);
-
-  // Lifted video player — allows seeking from trim slider
-  const videoPlayer = useVideoPlayer(videoUri ?? '', (p) => {
-    p.loop = false;
-  });
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
   const cameraRef = useRef<any>(null);
-  const latestRef = useRef({
-    mode: initialMode as 'record' | 'upload',
-    hasVideoUri: false,
-    uploading: false,
-    uploadPhase: 'idle' as 'idle' | 'uploading' | 'processing' | 'done',
-    uploadProgress: 0,
-    isRecording: false,
-  });
-
-  const TAG = 'RecordScreen';
-  const hasAutoPickedRef = React.useRef(false);
-
-  // Auto-launch gallery picker when entering upload mode
-  React.useEffect(() => {
-    if (initialMode === 'upload' && !hasAutoPickedRef.current && !videoUri) {
-      hasAutoPickedRef.current = true;
-      // Small delay so screen renders first
-      const t = setTimeout(() => pickVideo(), 300);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
-  function formatBytes(bytes: number | null) {
-    if (!bytes || bytes <= 0) return 'Unknown size';
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  }
-
-  function formatDuration(ms: number | null) {
-    if (!ms || ms <= 0) return 'Unknown duration';
-    return `${(ms / 1000).toFixed(1)}s`;
-  }
-
-  useEffect(() => {
-    latestRef.current = {
-      mode,
-      hasVideoUri: !!videoUri,
-      uploading,
-      uploadPhase,
-      uploadProgress,
-      isRecording,
-    };
-  }, [mode, videoUri, uploading, uploadPhase, uploadProgress, isRecording]);
-
-  useEffect(() => {
-    logger.info(TAG, 'mounted', {
-      initialMode,
-      hasVideoUri: !!videoUri,
-    });
-    return () => {
-      logger.info(TAG, 'unmounted', latestRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    logger.info(TAG, 'lifecycle: videoUri changed', {
-      hasVideoUri: !!videoUri,
-      uriPrefix: videoUri ? videoUri.slice(0, 80) : null,
-    });
-  }, [videoUri]);
-
-  useEffect(() => {
-    setPreviewPlayable(true);
-  }, [videoUri]);
-
-  useEffect(() => {
-    logger.info(TAG, 'lifecycle: upload state changed', {
-      uploading,
-      uploadPhase,
-      uploadProgress: Math.round(uploadProgress * 100),
-    });
-  }, [uploading, uploadPhase, uploadProgress]);
-
-  useEffect(() => {
-    const unsubFocus = navigation.addListener('focus', () => {
-      logger.info(TAG, 'nav event: focus');
-    });
-    const unsubBlur = navigation.addListener('blur', () => {
-      logger.info(TAG, 'nav event: blur');
-    });
-    const unsubBeforeRemove = navigation.addListener('beforeRemove', (e: any) => {
-      logger.info(TAG, 'nav event: beforeRemove', {
-        actionType: e?.data?.action?.type,
-      });
-    });
-    const unsubTransitionStart = navigation.addListener('transitionStart' as never, (e: any) => {
-      logger.info(TAG, 'nav event: transitionStart', {
-        closing: e?.data?.closing,
-      });
-    });
-    const unsubTransitionEnd = navigation.addListener('transitionEnd' as never, (e: any) => {
-      logger.info(TAG, 'nav event: transitionEnd', {
-        closing: e?.data?.closing,
-      });
-    });
-    return () => {
-      unsubFocus();
-      unsubBlur();
-      unsubBeforeRemove();
-      unsubTransitionStart();
-      unsubTransitionEnd();
-    };
-  }, [navigation]);
-
-  // Show our explainer first, then trigger the system permission dialog on confirm
-  const showCameraPermissionExplainer = useCallback(() => {
-    setPermissionExplainer('camera');
-  }, []);
 
   const requestCameraPermission = useCallback(async () => {
-    setPermissionExplainer(null);
-    logger.info(TAG, 'requestCameraPermission: requesting camera permission');
     const result = await requestPermission();
-    logger.info(TAG, `requestCameraPermission: granted=${result.granted}`);
     if (!result.granted) {
-      logger.warn(TAG, 'requestCameraPermission: permission DENIED by user');
       Alert.alert(
         'Camera Permission Required',
-        'Please allow camera and microphone access in Settings to record your swing.',
+        'Please allow camera access in Settings to record your swing.',
         [{ text: 'OK' }]
       );
     }
   }, [requestPermission]);
 
   async function startRecording() {
-    if (!cameraRef.current) {
-      logger.warn(TAG, 'startRecording: cameraRef is null — camera not ready');
-      return;
-    }
-
-    // Microphone permission is handled automatically by expo-camera when recording video
-
+    if (!cameraRef.current) return;
     setIsRecording(true);
-    logger.info(TAG, 'startRecording: calling cameraRef.recordAsync()', { maxDuration: 30 });
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
-      logger.info(TAG, 'startRecording: recording completed', { uri: video.uri });
       setVideoUri(video.uri);
-      setVideoDurationMs(null);
-      try {
-        const info = await FileSystem.getInfoAsync(video.uri);
-        setVideoSizeBytes((info as any)?.size ?? null);
-      } catch {
-        setVideoSizeBytes(null);
-      }
     } catch (err: any) {
-      logger.error(TAG, 'startRecording: recordAsync threw an error', err);
-      Alert.alert('Recording failed', 'Could not record video. Try uploading from your gallery instead.');
-      setMode('upload');
+      Alert.alert('Recording Error', err.message ?? 'Failed to record video.');
     } finally {
       setIsRecording(false);
     }
   }
 
   function stopRecording() {
-    logger.info(TAG, 'stopRecording: stopping camera recording');
     if (cameraRef.current && isRecording) {
       cameraRef.current.stopRecording();
     }
   }
 
   async function pickVideo() {
-    // Check if we already have permission; if not, show explainer first
-    const existingPerm = await ImagePicker.getMediaLibraryPermissionsAsync();
-    if (!existingPerm.granted && existingPerm.canAskAgain) {
-      setPermissionExplainer('photos');
-      return;
-    }
-    await doPickVideo();
-  }
-
-  async function doPickVideo() {
-    logger.info(TAG, 'pickVideo: launching image library picker');
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       allowsEditing: false,
       quality: 1,
-      legacy: Platform.OS === 'android',
     });
-
-    if (result.canceled) {
-      logger.info(TAG, 'pickVideo: user cancelled picker');
-      return;
-    }
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      let resolvedUri = asset.uri;
-
-      if (Platform.OS === 'android') {
-        try {
-          resolvedUri = await materializeAndroidVideoForPreview(asset.uri, asset.mimeType);
-          logger.info(TAG, 'pickVideo: copied Android video into app cache for preview', {
-            sourceUriPrefix: asset.uri.slice(0, 80),
-            resolvedUriPrefix: resolvedUri.slice(0, 80),
-          });
-        } catch (copyErr) {
-          logger.warn(TAG, 'pickVideo: failed to copy Android video into app cache, falling back to picker URI', {
-            sourceUriPrefix: asset.uri.slice(0, 80),
-            error: copyErr,
-          });
-        }
-      }
-
-      let resolvedSizeBytes = (asset as any).fileSize ?? null;
-      if (!resolvedSizeBytes) {
-        try {
-          const info = await FileSystem.getInfoAsync(resolvedUri);
-          resolvedSizeBytes = (info as any)?.size ?? null;
-        } catch {
-          resolvedSizeBytes = null;
-        }
-      }
-
-      logger.info(TAG, 'pickVideo: video selected', {
-        uri: asset.uri,
-        uriScheme: typeof asset.uri === 'string' ? asset.uri.split(':')[0] : null,
-        resolvedUri: resolvedUri,
-        resolvedUriScheme: typeof resolvedUri === 'string' ? resolvedUri.split(':')[0] : null,
-        mimeType: asset.mimeType,
-        fileSize: resolvedSizeBytes,
-        duration: asset.duration,
-        width: asset.width,
-        height: asset.height,
-      });
-      setVideoUri(resolvedUri);
+      setVideoUri(asset.uri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
-      setVideoDurationMs(asset.duration ?? null);
-      setVideoSizeBytes(resolvedSizeBytes);
-      // Reset trim to full video
-      const durationSec = asset.duration ? asset.duration / 1000 : 0;
-      setTrimStart(0);
-      setTrimEnd(durationSec > 0 ? durationSec : null);
     }
   }
 
   async function handleAnalyze() {
-    if (!videoUri) {
-      logger.warn(TAG, 'handleAnalyze: called with no videoUri — ignoring');
-      return;
-    }
-
-    logger.info(TAG, '=== handleAnalyze: START ===', { videoUri, videoMime });
-
-    // Check file size before uploading (50MB limit for Vercel)
-    try {
-      const fileInfo = await FileSystem.getInfoAsync(videoUri);
-      logger.info(TAG, 'handleAnalyze: file info', fileInfo);
-      if (fileInfo.exists && (fileInfo as any).size) {
-        const sizeMB = ((fileInfo as any).size / (1024 * 1024)).toFixed(2);
-        logger.info(TAG, `handleAnalyze: video size = ${sizeMB} MB`);
-        if ((fileInfo as any).size > 50 * 1024 * 1024) {
-          logger.warn(TAG, `handleAnalyze: video too large (${sizeMB} MB) — aborting`);
-          Alert.alert(
-            'Video Too Large',
-            'Please use a video under 50MB. Try recording a shorter clip (under 30 seconds).',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-      }
-    } catch (sizeErr) {
-      logger.warn(TAG, 'handleAnalyze: could not check file size — proceeding anyway', sizeErr);
-    }
-
+    if (!videoUri) return;
     setUploading(true);
     setUploadProgress(0);
     setUploadPhase('uploading');
-
     try {
-      logger.info(TAG, 'handleAnalyze: calling submitAnalysis()');
-      const durationSec = videoDurationMs ? videoDurationMs / 1000 : 0;
-      const effectiveTrimEnd = trimEnd ?? durationSec;
-      const hasTrim = trimStart > 0 || (effectiveTrimEnd > 0 && effectiveTrimEnd < durationSec - 0.5);
-      logger.info(TAG, 'handleAnalyze: trim', { trimStart, trimEnd: effectiveTrimEnd, hasTrim });
       const result = await submitAnalysis(videoUri, videoMime, (progress) => {
         // Cap at 95% during upload — the last 5% is server-side handoff
         setUploadProgress(Math.min(progress, 0.95));
-      }, undefined, athleteId, hasTrim ? trimStart : undefined, hasTrim ? effectiveTrimEnd : undefined);
-
-      logger.info(TAG, 'handleAnalyze: submitAnalysis() returned', {
-        analysisId: result?.analysisId ?? result?.id ?? null,
-        status: result?.status ?? null,
-        strengthsLen: Array.isArray(result?.strengths) ? result.strengths.length : null,
-        improvementsLen: Array.isArray(result?.improvements) ? result.improvements.length : null,
-        hasRawAnalysis: typeof result?.raw_analysis === 'string' && result.raw_analysis.length > 0,
-        hasResultVideoUrl: typeof result?.result_video_url === 'string' && result.result_video_url.trim().length > 0,
       });
-
-      // Guard: if result.id is missing the server-side handoff failed
-      const analysisId = result?.analysisId ?? result?.id;
-      if (!analysisId) {
-        logger.error(TAG, 'handleAnalyze: no analysisId in response — server handoff failed', result);
-        setUploadPhase('idle');
-        setUploading(false);
-        Alert.alert('Analysis Failed', 'Analysis failed — please try again.', [{ text: 'OK' }]);
-        return;
-      }
-
       // Upload complete — switch to processing phase
-      logger.info(TAG, `handleAnalyze: navigating to AnalysisResult, analysisId=${analysisId}, status=${result?.status}`);
       setUploadProgress(1);
       setUploadPhase('processing');
-      const shouldPoll = result?.status !== 'completed';
-
-      // Do not unmount/swap the preview Video in-place (that has native-crashed on some devices).
-      // Defer replace so the stack transition tears down Record (and its player) in one step.
-      await new Promise<void>((resolve) => {
-        logger.info(TAG, 'handleAnalyze: waiting for InteractionManager before navigation');
-        InteractionManager.runAfterInteractions(() => {
-          logger.info(TAG, 'handleAnalyze: InteractionManager callback fired');
-          requestAnimationFrame(() => {
-            logger.info(TAG, 'handleAnalyze: first requestAnimationFrame fired');
-            requestAnimationFrame(() => {
-              logger.info(TAG, 'handleAnalyze: second requestAnimationFrame fired');
-              try {
-                if (!shouldPoll) {
-                  const prefetchedAnalysis = {
-                    id: analysisId,
-                    status: 'completed' as const,
-                    score: null,
-                    feedback: result?.raw_analysis ?? null,
-                    audio_url: null,
-                    video_url: result?.result_video_url ?? null,
-                    result_video_url: result?.result_video_url ?? null,
-                    created_at: new Date().toISOString(),
-                    strengths: result?.strengths ?? [],
-                    improvements: result?.improvements ?? [],
-                    recommended_drills: result?.recommended_drills ?? [],
-                  };
-                  logger.info(TAG, 'handleAnalyze: status=completed — passing prefetchedData via params', {
-                    summary: summarizeAnalysisForLog(prefetchedAnalysis),
-                  });
-                  navigation.replace('AnalysisResult', {
-                    analysisId,
-                    poll: false,
-                    prefetchedData: prefetchedAnalysis,
-                  });
-                } else {
-                  logger.info(TAG, 'handleAnalyze: navigating with poll (no prefetch)', {
-                    analysisId,
-                    poll: shouldPoll,
-                  });
-                  navigation.replace('AnalysisResult', { analysisId, poll: shouldPoll });
-                }
-                logger.info(TAG, 'handleAnalyze: navigation.replace dispatched');
-              } finally {
-                resolve();
-              }
-            });
-          });
-        });
-      });
+      navigation.replace('AnalysisResult', { analysisId: result.analysisId ?? result.id, poll: true });
     } catch (err: any) {
       setUploadPhase('idle');
-      setUploading(false);
-
-      // Structured error log — replaces the old console.log
-      logger.error(TAG, 'handleAnalyze: submitAnalysis() THREW', {
-        code: err?.code,
-        message: err?.message,
-        responseStatus: err?.response?.status,
-        responseData: err?.response?.data,
-        stack: err?.stack,
-      });
-
-      // Network timeout (axios timeout = 120s)
-      if (err?.code === 'ECONNABORTED' || err?.message?.toLowerCase().includes('timeout')) {
-        Alert.alert(
-          'Request Timed Out',
-          'The server took too long to respond. Please check your connection and try again.',
-          [{ text: 'Try Again' }]
-        );
-        return;
-      }
-
-      // Server-side error response
-      if (err?.response) {
-        const serverMsg = err.response?.data?.error ?? err.response?.data?.message;
-        Alert.alert(
-          'Upload Failed',
-          serverMsg ?? err?.message ?? 'Failed to upload video. Please try a shorter clip.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Generic fallback — show actual error message
-      Alert.alert(
-        'Upload Failed',
-        err?.response?.data?.error || err?.message || 'Failed to upload video. Please try a shorter clip.',
-        [{ text: 'OK' }]
-      );
+      const message = err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.';
+      Alert.alert('Upload Failed', message, [{ text: 'Try Again' }]);
     } finally {
-      // Always dismiss loading overlay
       setUploading(false);
     }
   }
 
   function resetVideo() {
     setVideoUri(null);
-    setVideoDurationMs(null);
-    setVideoSizeBytes(null);
-    setPreviewPlayable(true);
     setUploadProgress(0);
-    setTrimStart(0);
-    setTrimEnd(null);
-  }
-
-  async function openSystemPreview() {
-    if (!videoUri) return;
-    logger.info(TAG, 'openSystemPreview: opening external player', {
-      uriPrefix: videoUri.slice(0, 80),
-    });
-    try {
-      if (Platform.OS === 'android') {
-        const intentUri = videoUri.startsWith('file://')
-          ? await FileSystem.getContentUriAsync(videoUri)
-          : videoUri;
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: intentUri,
-          type: videoMime || 'video/*',
-          flags: 1,
-        });
-        return;
-      }
-      if (/^https?:\/\//i.test(videoUri)) {
-        const canOpen = await Linking.canOpenURL(videoUri);
-        if (canOpen) {
-          await Linking.openURL(videoUri);
-          return;
-        }
-      }
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(videoUri, {
-          mimeType: videoMime || 'video/*',
-          dialogTitle: 'Open video preview',
-        });
-        return;
-      }
-      Alert.alert('Preview unavailable', 'No compatible video app is available on this device.');
-    } catch (err) {
-      logger.warn(TAG, 'openSystemPreview: failed to open external player', err);
-      try {
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(videoUri, {
-            mimeType: videoMime || 'video/*',
-            dialogTitle: 'Open video preview',
-          });
-          return;
-        }
-      } catch (shareErr) {
-        logger.warn(TAG, 'openSystemPreview: sharing fallback also failed', shareErr);
-      }
-      Alert.alert('Preview unavailable', 'Could not open video preview on this device.');
-    }
   }
 
   // --- Video preview state ---
@@ -595,64 +134,16 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          {previewPlayable ? (
-            <SelectedVideoPreview
-              player={videoPlayer}
-              onError={() => {
-                logger.error(TAG, 'Selected preview video failed to load', {
-                  uriPrefix: videoUri.slice(0, 80),
-                });
-                setPreviewPlayable(false);
-              }}
-            />
-          ) : (
-            <View style={styles.videoPreviewPlaceholder}>
-              <Ionicons name="warning-outline" size={44} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.previewHintTitle}>Preview unavailable in-app</Text>
-              <Text style={styles.previewHintText}>
-                This clip could not be previewed on this device. You can still open it externally or continue to
-                analysis.
-              </Text>
-              <TouchableOpacity style={styles.previewOpenButton} onPress={openSystemPreview}>
-                <Text style={styles.previewOpenButtonText}>Open Preview Externally</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <Video
+            source={{ uri: videoUri }}
+            style={styles.videoPreview}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping
+          />
         </View>
 
         <View style={styles.previewFooter}>
-          <Text style={styles.previewFooterMetaText}>
-            Selected: {formatDuration(videoDurationMs)} • {formatBytes(videoSizeBytes)}
-          </Text>
-
-          {/* Trim slider — only show when duration is known and > 4s */}
-          {videoDurationMs && videoDurationMs > 4000 && (
-            <View style={styles.trimContainer} onStartShouldSetResponder={() => true}>
-              <VideoTrimSlider
-                duration={videoDurationMs / 1000}
-                startTime={trimStart}
-                endTime={trimEnd ?? videoDurationMs / 1000}
-                onStartChange={(t) => {
-                  setTrimStart(t);
-                  // Pause and seek preview to start thumb position
-                  try {
-                    videoPlayer.pause();
-                    videoPlayer.currentTime = t;
-                  } catch {}
-                }}
-                onEndChange={(t) => {
-                  setTrimEnd(t);
-                  // Seek preview to end thumb position so user sees that frame
-                  try {
-                    videoPlayer.pause();
-                    videoPlayer.currentTime = t;
-                  } catch {}
-                }}
-                minClip={2}
-              />
-            </View>
-          )}
-
           <View style={styles.tokenRow}>
             <Ionicons name="flash" size={16} color={COLORS.accent} />
             <Text style={styles.tokenText}>This analysis costs {TOKEN_COST} tokens</Text>
@@ -739,10 +230,10 @@ export default function RecordScreen() {
           <Ionicons name="camera-outline" size={60} color={COLORS.muted} />
           <Text style={styles.permissionTitle}>Camera Access Needed</Text>
           <Text style={styles.permissionSubtitle}>
-            NextSport needs camera and microphone access to record your swing for AI analysis.
+            NextSport needs camera access to record your swing videos.
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={showCameraPermissionExplainer}>
-            <Text style={styles.permissionButtonText}>Continue</Text>
+          <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
+            <Text style={styles.permissionButtonText}>Grant Permission</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.switchToUploadButton}
@@ -751,18 +242,11 @@ export default function RecordScreen() {
             <Text style={styles.switchToUploadText}>Upload a video instead</Text>
           </TouchableOpacity>
         </View>
-        <PermissionExplainerModal
-          visible={permissionExplainer === 'camera'}
-          type="camera"
-          onConfirm={requestCameraPermission}
-          onDismiss={() => setPermissionExplainer(null)}
-        />
       </SafeAreaView>
     );
   }
 
   return (
-    <>
     <View style={styles.cameraContainer}>
       <CameraView
         ref={cameraRef}
@@ -820,150 +304,8 @@ export default function RecordScreen() {
         )}
       </CameraView>
     </View>
-    <PermissionExplainerModal
-      visible={permissionExplainer === 'photos'}
-      type="photos"
-      onConfirm={async () => {
-        setPermissionExplainer(null);
-        await doPickVideo();
-      }}
-      onDismiss={() => setPermissionExplainer(null)}
-    />
-    </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Permission Explainer Modal
-// Shown BEFORE the system permission dialog so the user understands why
-// we need each permission. Required by App Store guideline 5.1.1.
-// ---------------------------------------------------------------------------
-
-type ExplainerType = 'camera' | 'photos';
-
-interface ExplainerConfig {
-  icon: string;
-  title: string;
-  body: string;
-  confirmLabel: string;
-}
-
-const EXPLAINER_CONFIG: Record<ExplainerType, ExplainerConfig> = {
-  camera: {
-    icon: '🎥',
-    title: 'Camera & Microphone Access',
-    body:
-      'NextSport needs access to your camera and microphone to record your swing video.\n\n' +
-      '• Your video is used only to generate your AI swing analysis.\n' +
-      '• It is uploaded securely to our servers for processing, then accessible only to you.\n' +
-      '• We never use your video for advertising or share it with third parties.',
-    confirmLabel: 'Continue',
-  },
-  photos: {
-    icon: '🖼️',
-    title: 'Photo Library Access',
-    body:
-      'NextSport needs read access to your photo library so you can select an existing swing video for analysis.\n\n' +
-      '• Only the video you choose is accessed — we do not browse or scan your other photos.\n' +
-      '• Your selected video is uploaded securely and used solely for AI analysis.\n' +
-      '• We never save, share, or use your media for any other purpose.',
-    confirmLabel: 'Continue',
-  },
-};
-
-function PermissionExplainerModal({
-  visible,
-  type,
-  onConfirm,
-  onDismiss,
-}: {
-  visible: boolean;
-  type: ExplainerType;
-  onConfirm: () => void;
-  onDismiss: () => void;
-}) {
-  const config = EXPLAINER_CONFIG[type];
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
-      statusBarTranslucent
-    >
-      <View style={explainerStyles.overlay}>
-        <View style={explainerStyles.sheet}>
-          <Text style={explainerStyles.icon}>{config.icon}</Text>
-          <Text style={explainerStyles.title}>{config.title}</Text>
-          <Text style={explainerStyles.body}>{config.body}</Text>
-          <TouchableOpacity style={explainerStyles.confirmButton} onPress={onConfirm} activeOpacity={0.85}>
-            <Text style={explainerStyles.confirmText}>{config.confirmLabel}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={explainerStyles.dismissButton} onPress={onDismiss} activeOpacity={0.7}>
-            <Text style={explainerStyles.dismissText}>Skip</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-const explainerStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#1a1f2e',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 28,
-    paddingTop: 28,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  icon: {
-    fontSize: 44,
-    marginBottom: 12,
-  },
-  title: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  body: {
-    color: 'rgba(255,255,255,0.72)',
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'left',
-    alignSelf: 'stretch',
-    marginBottom: 28,
-  },
-  confirmButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  confirmText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  dismissButton: {
-    paddingVertical: 8,
-  },
-  dismissText: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 14,
-  },
-});
 
 const styles = StyleSheet.create({
   safe: {
@@ -1003,56 +345,6 @@ const styles = StyleSheet.create({
   },
   videoPreview: {
     flex: 1,
-  },
-  videoPreviewPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    backgroundColor: '#000',
-  },
-  previewHintTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  previewHintText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  previewMetaText: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  previewFooterMetaText: {
-    color: COLORS.muted,
-    fontSize: 12,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  trimContainer: {
-    marginBottom: 14,
-    paddingHorizontal: 4,
-  },
-  previewOpenButton: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  previewOpenButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
   },
   previewFooter: {
     backgroundColor: COLORS.background,

@@ -259,10 +259,12 @@ export default function DrillsScreen() {
                         allowsFullscreenVideo
                         javaScriptEnabled
                         domStorageEnabled
+                        allowsInlineMediaPlayback
                         mediaPlaybackRequiresUserAction={false}
                         scrollEnabled={false}
                         originWhitelist={['*']}
-                        userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                        mixedContentMode="always"
+                        userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
                       />
                     ) : (
                       <View style={styles.videoThumbPlaceholder}>
