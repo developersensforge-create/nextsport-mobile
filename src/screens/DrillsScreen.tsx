@@ -8,11 +8,10 @@ import {
   FlatList,
   Modal,
   Pressable,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
+import YouTubePlayer from '../components/YouTubePlayer';
 
 function extractYouTubeId(url: string): string | null {
   const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
@@ -23,14 +22,6 @@ function getYouTubeThumbnail(url: string): string | null {
   const id = extractYouTubeId(url);
   return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
 }
-
-function getYouTubeEmbedUrl(url: string, startTime?: number): string | null {
-  const id = extractYouTubeId(url);
-  if (!id) return null;
-  // Parse start time from URL (e.g. ?t=20 or &t=149)
-  const tMatch = url.match(/[?&]t=(\d+)/);
-  const t = tMatch ? parseInt(tMatch[1]) : (startTime ?? 0);
-  return `https://www.youtube.com/embed/${id}?start=${t}&autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 import { COLORS } from '../theme';
 import {
@@ -250,41 +241,34 @@ export default function DrillsScreen() {
                 </View>
 
                 {/* Reference Video — inline YouTube player */}
-                {selectedDrill.referenceVideo && (
-                  <View style={styles.videoCardDirect}>
-                    {getYouTubeEmbedUrl(selectedDrill.referenceVideo.url) ? (
-                      <WebView
-                        style={styles.videoWebView}
-                        source={{ uri: getYouTubeEmbedUrl(selectedDrill.referenceVideo.url)! }}
-                        allowsFullscreenVideo
-                        javaScriptEnabled
-                        domStorageEnabled
-                        allowsInlineMediaPlayback
-                        mediaPlaybackRequiresUserAction={false}
-                        scrollEnabled={false}
-                        originWhitelist={['*']}
-                        mixedContentMode="always"
-                        userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-                      />
-                    ) : (
-                      <View style={styles.videoThumbPlaceholder}>
-                        <Ionicons name="logo-youtube" size={36} color="#ff0000" />
-                      </View>
-                    )}
-                    <View style={styles.videoDirectInfo}>
-                      <Text style={styles.videoTitle} numberOfLines={2}>
-                        {selectedDrill.referenceVideo.title}
-                      </Text>
-                      <Text style={styles.videoCreator}>{selectedDrill.referenceVideo.creator}</Text>
-                      {selectedDrill.referenceVideo.note && (
-                        <Text style={styles.videoNote}>⏱ {selectedDrill.referenceVideo.note}</Text>
+                {selectedDrill.referenceVideo && (() => {
+                  const videoId = extractYouTubeId(selectedDrill.referenceVideo!.url);
+                  const tMatch = selectedDrill.referenceVideo!.url.match(/[?&]t=(\d+)/);
+                  const startTime = tMatch ? parseInt(tMatch[1]) : 0;
+                  return (
+                    <View style={styles.videoCardDirect}>
+                      {videoId ? (
+                        <YouTubePlayer videoId={videoId} startTime={startTime} />
+                      ) : (
+                        <View style={styles.videoThumbPlaceholder}>
+                          <Ionicons name="logo-youtube" size={36} color="#ff0000" />
+                        </View>
                       )}
-                      <Text style={styles.videoCitation} numberOfLines={3}>
-                        {selectedDrill.referenceVideo.creator}. {new Date().getFullYear()}. <Text style={{ fontStyle: 'italic' }}>{selectedDrill.referenceVideo.title}</Text> [Video]. YouTube. {selectedDrill.referenceVideo.url.split('?')[0]}
-                      </Text>
+                      <View style={styles.videoDirectInfo}>
+                        <Text style={styles.videoTitle} numberOfLines={2}>
+                          {selectedDrill.referenceVideo!.title}
+                        </Text>
+                        <Text style={styles.videoCreator}>{selectedDrill.referenceVideo!.creator}</Text>
+                        {selectedDrill.referenceVideo!.note && (
+                          <Text style={styles.videoNote}>⏱ {selectedDrill.referenceVideo!.note}</Text>
+                        )}
+                        <Text style={styles.videoCitation} numberOfLines={3}>
+                          {selectedDrill.referenceVideo!.creator}. {new Date().getFullYear()}. <Text style={{ fontStyle: 'italic' }}>{selectedDrill.referenceVideo!.title}</Text> [Video]. YouTube. {selectedDrill.referenceVideo!.url.split('?')[0]}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                )}
+                  );
+                })()}
 
                 {/* Drill Focus */}
                 <Text style={styles.sectionLabel}>Drill Focus</Text>
@@ -481,10 +465,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
-  },
-  videoWebView: {
-    height: 210,
-    backgroundColor: '#000',
   },
   videoThumbPlaceholder: {
     height: 210,
