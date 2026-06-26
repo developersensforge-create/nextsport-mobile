@@ -18,6 +18,7 @@
         "backgroundColor": "#0a0f1e"
       },
       "package": "com.nextsport.app",
+      "versionCode": 11,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
