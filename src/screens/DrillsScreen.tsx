@@ -30,7 +30,7 @@ function getYouTubeEmbedUrl(url: string, startTime?: number): string | null {
   // Parse start time from URL (e.g. ?t=20 or &t=149)
   const tMatch = url.match(/[?&]t=(\d+)/);
   const t = tMatch ? parseInt(tMatch[1]) : (startTime ?? 0);
-  return `https://www.youtube.com/embed/${id}?start=${t}&autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+  return `https://www.youtube.com/embed/${id}?start=${t}&autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 import { COLORS } from '../theme';
 import {
@@ -258,8 +258,11 @@ export default function DrillsScreen() {
                         source={{ uri: getYouTubeEmbedUrl(selectedDrill.referenceVideo.url)! }}
                         allowsFullscreenVideo
                         javaScriptEnabled
+                        domStorageEnabled
                         mediaPlaybackRequiresUserAction={false}
                         scrollEnabled={false}
+                        originWhitelist={['*']}
+                        userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                       />
                     ) : (
                       <View style={styles.videoThumbPlaceholder}>
