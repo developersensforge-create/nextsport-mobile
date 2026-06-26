@@ -1,0 +1,103 @@
+workflows:
+  ios-testflight:
+    name: NextSport iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - signing
+      vars:
+        EXPO_TOKEN: "LS9tC4kVqw-_uHGBsA3cEaKkPu5T7nS8eSCc7r52H_c"
+        APP_STORE_CONNECT_KEY_IDENTIFIER: "C2345LX527"
+        APP_STORE_CONNECT_ISSUER_ID: "5fd238fa-843c-4575-a581-bc0cb45b1798"
+        BUNDLE_ID: "com.sensforge.nextsport"
+      xcode: latest
+      node: latest
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Set up signing certificate
+        script: |
+          echo $CM_CERTIFICATE | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 3600 build.keychain
+          security import /tmp/cert.p12 -k build.keychain -P "$CM_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/xcodebuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Set up provisioning profile
+        script: |
+          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_HOME"
+          echo $CM_PROVISIONING_PROFILE | base64 --decode > "$PROFILES_HOME/nextsport_dist.mobileprovision"
+
+      - name: Set up ASC API Key for altool
+        script: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR1RBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJIa3dkd0lCQVFRZzF6dnkwWU9pcUo0OHIwTFQKRVZSTXdDQ0xwS01lUVYwMno0ZE1RRmJMdzFhZ0NnWUlLb1pJemowREFRZWhSQU5DQUFTazBKbEZIcnRqaWMwWgo2MlZHMFFxTVR0eGZzOVcvMGlsWFllTmNINHBteWFmSGFHbElUdmlUNk4yU1JqanFLaHpDOEpsMTdFYkNSRlQ0CkFBQ0FZK0Y5Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0=" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_C2345LX527.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_C2345LX527.p8
+
+      - name: Expo prebuild
+        script: |
+          npx expo prebuild --platform ios --clean
+
+      - name: Build iOS Archive
+        script: |
+          xcodebuild \
+            -workspace ios/nextsport.xcworkspace \
+            -scheme nextsport \
+            -configuration Release \
+            -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="NextSport AppStore Distribution v2" \
+            DEVELOPMENT_TEAM="58BKXDS287" \
+            clean archive
+
+      - name: Export IPA
+        script: |
+          mkdir -p $CM_BUILD_DIR/ipa
+          cat > /tmp/export_options.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>58BKXDS287</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.sensforge.nextsport</key>
+              <string>NextSport AppStore Distribution v2</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
+            -exportOptionsPlist /tmp/export_options.plist \
+            -exportPath $CM_BUILD_DIR/ipa
+
+      - name: Upload to TestFlight
+        script: |
+          xcrun altool --upload-app \
+            -f "$CM_BUILD_DIR/ipa/nextsport.ipa" \
+            --apiKey "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            --type ios
+
+    artifacts:
+      - $CM_BUILD_DIR/ipa/*.ipa
+      - $CM_BUILD_DIR/nextsport.xcarchive
+
+    publishing:
+      email:
+        recipients:
+          - developer.sensforge@gmail.com
