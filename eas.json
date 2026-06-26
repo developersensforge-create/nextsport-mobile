@@ -18,7 +18,12 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "distribution": "store",
+      "ios": {
+        "buildConfiguration": "Release",
+        "credentialsSource": "remote"
+      }
     },
     "play-store": {
       "distribution": "store",

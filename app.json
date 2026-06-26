@@ -29,7 +29,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nextsport.app",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "NSCameraUsageDescription": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are uploaded securely and used only for your personal analysis.",
         "NSMicrophoneUsageDescription": "NextSport uses your microphone to capture audio when recording swing videos. Audio is included in your video upload and used only for analysis.",
