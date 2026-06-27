@@ -8,21 +8,11 @@ import {
   FlatList,
   Modal,
   Pressable,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import YouTubePlayer from '../components/YouTubePlayer';
-
-function extractYouTubeId(url: string): string | null {
-  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
-  return m ? m[1] : null;
-}
-
-function getYouTubeThumbnail(url: string): string | null {
-  const id = extractYouTubeId(url);
-  return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
-}
-}
 import { COLORS } from '../theme';
 import {
   DRILLS,
@@ -34,6 +24,16 @@ import {
   DrillLevel,
   DrillTopic,
 } from '../data/drills';
+
+function extractYouTubeId(url: string): string | null {
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function getYouTubeThumbnail(url: string): string | null {
+  const id = extractYouTubeId(url);
+  return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
+}
 
 export default function DrillsScreen() {
   const [selectedTopic, setSelectedTopic] = useState<DrillTopic>('Batting');
@@ -248,7 +248,7 @@ export default function DrillsScreen() {
                   return (
                     <View style={styles.videoCardDirect}>
                       {videoId ? (
-                        <YouTubePlayer videoId={videoId} startTime={startTime} />
+                        <YouTubePlayer videoId={videoId} startTime={startTime} originalUrl={selectedDrill.referenceVideo!.url} />
                       ) : (
                         <View style={styles.videoThumbPlaceholder}>
                           <Ionicons name="logo-youtube" size={36} color="#ff0000" />

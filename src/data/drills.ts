@@ -312,9 +312,9 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'Bare hands immediately reveals if you\'re stabbing at the ball. Your hands will get stung if your technique is wrong — that\'s the feedback.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/S3PWpGER43I?si=KG-R9SEBFaXuSdmQ',
-      title: 'Easy Infield Drills You Can Do At Home By Yourself',
-      creator: 'AntonelliBaseball',
+      url: 'https://www.youtube.com/watch?v=ovOCwH4eEI8',
+      title: '3 Infield Drills You Can Do By Yourself',
+      creator: 'Antonelli Baseball',
       note: 'Full video',
     },
   },
