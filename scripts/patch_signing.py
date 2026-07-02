@@ -14,7 +14,7 @@ signing_block = (
     '\n\t\t\t\tCODE_SIGN_STYLE = Manual;'
     '\n\t\t\t\tDEVELOPMENT_TEAM = ' + TEAM + ';'
     '\n\t\t\t\tPROVISIONING_PROFILE = "' + PROFILE_UUID + '";'
-    '\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "' + PROFILE_NAME + '";'
+    '\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "";'
 )
 
 pattern = r'(/\* Release \*/ = \{.*?buildSettings = \{)(.*?ASSETCATALOG_COMPILER_APPICON_NAME.*?)(\t\t\t\};)'
