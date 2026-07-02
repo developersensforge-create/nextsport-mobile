@@ -1,20 +1,44 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import {
+  ensureIapConnection,
+  fetchIapProducts,
+  purchaseProduct,
+  completePurchase,
+  onPurchaseUpdated,
+  onPurchaseError,
+  IAP_SKUS,
+  isIapConnected,
+} from '../lib/iap';
+import type { Product, Purchase } from 'expo-iap';
 
 type PaywallNavProp = StackNavigationProp<RootStackParamList, 'Paywall'>;
+
+type ProductInfo = {
+  productId: string;
+  localizedPrice: string;
+  price: string;
+};
+
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'loaded'; product: ProductInfo }
+  | { status: 'error'; message: string }
+  | { status: 'purchasing'; product: ProductInfo };
 
 const FEATURES = [
   {
@@ -44,18 +68,165 @@ const FEATURES = [
   },
 ];
 
+function productToInfo(p: Product): ProductInfo {
+  return {
+    productId: p.id || IAP_SKUS.PREMIUM_MONTHLY,
+    localizedPrice: (p as any).localizedPrice || (p as any).displayPrice || '$14.99',
+    price: (p as any).price || '$14.99',
+  };
+}
+
 export default function PaywallScreen() {
   const navigation = useNavigation<PaywallNavProp>();
+  const [state, setState] = useState<LoadState>({ status: 'loading' });
 
-  async function handleSubscribe() {
-    await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
+  // ── Load IAP products on mount ──────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      // Ensure IAP connection first
+      const ok = await ensureIapConnection();
+      if (!ok) {
+        if (!cancelled) setState({ status: 'error', message: 'Store connection failed. Please try again later.' });
+        return;
+      }
+
+      const products = await fetchIapProducts();
+      if (cancelled) return;
+
+      const premium = products.find((p) => p.id === IAP_SKUS.PREMIUM_MONTHLY);
+      if (premium) {
+        setState({ status: 'loaded', product: productToInfo(premium) });
+      } else {
+        // Fallback: show hardcoded price if StoreKit products aren't available yet
+        setState({
+          status: 'loaded',
+          product: { productId: IAP_SKUS.PREMIUM_MONTHLY, localizedPrice: '$14.99', price: '$14.99' },
+        });
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Listen for purchase updates/errors ──────────────────────────────
+  useEffect(() => {
+    const purchaseSub = onPurchaseUpdated(async (purchase: Purchase) => {
+      console.log('[Paywall] Purchase updated:', (purchase as any).transactionId);
+      try {
+        await completePurchase(purchase, false);
+      } catch (err) {
+        console.error('[Paywall] finishTransaction failed:', err);
+      }
+      Alert.alert('Purchase Complete', 'Your premium subscription is now active!', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    });
+
+    const errorSub = onPurchaseError((error) => {
+      console.error('[Paywall] Purchase error:', error.code, error.message);
+      setState((prev) => {
+        if (prev.status === 'purchasing') {
+          return { status: 'loaded', product: prev.product };
+        }
+        return prev;
+      });
+      // E_USER_CANCELLED is not an error to show
+      if (error.code !== 'E_USER_CANCELLED') {
+        Alert.alert('Purchase Failed', error.message || 'Something went wrong. Please try again.');
+      }
+    });
+
+    return () => {
+      purchaseSub.remove();
+      errorSub.remove();
+    };
+  }, [navigation]);
+
+  // ── Handle subscribe ────────────────────────────────────────────────
+  const handleSubscribe = useCallback(async () => {
+    if (state.status !== 'loaded') return;
+
+    const product = state.product;
+    setState({ status: 'purchasing', product });
+
+    // Re-check connection before purchase
+    if (!isIapConnected()) {
+      const ok = await ensureIapConnection();
+      if (!ok) {
+        setState({ status: 'error', message: 'Store connection failed. Please try again later.' });
+        return;
+      }
+    }
+
+    try {
+      await purchaseProduct(product.productId);
+      // Result handled by purchaseUpdatedListener
+    } catch (error: any) {
+      console.error('[Paywall] purchaseProduct failed:', error);
+      setState({ status: 'loaded', product });
+      Alert.alert('Error', 'Could not start purchase. Please try again.');
+    }
+  }, [state]);
+
+  // ── Handle close ────────────────────────────────────────────────────
+  const handleClose = useCallback(() => {
+    try {
+      navigation.goBack();
+    } catch (error) {
+      console.error('[Paywall] goBack failed:', error);
+    }
+  }, [navigation]);
+
+  // ── Loading state ───────────────────────────────────────────────────
+  if (state.status === 'loading') {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={COLORS.muted} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+          <Text style={styles.loadingText}>Loading offer...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
+
+  // ── Error state ─────────────────────────────────────────────────────
+  if (state.status === 'error') {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={COLORS.muted} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.centered}>
+          <Ionicons name="alert-circle-outline" size={48} color={COLORS.muted} />
+          <Text style={styles.errorText}>{state.message}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleClose}>
+            <Text style={styles.retryText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Loaded / Purchasing state ───────────────────────────────────────
+  const { product } = state;
+  const priceText = product.localizedPrice || '$14.99';
+  const isPurchasing = state.status === 'purchasing';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color={COLORS.muted} />
+        <TouchableOpacity onPress={handleClose} style={styles.closeButton} disabled={isPurchasing}>
+          <Ionicons name="close" size={24} color={isPurchasing ? 'rgba(255,255,255,0.2)' : COLORS.muted} />
         </TouchableOpacity>
       </View>
 
@@ -78,7 +249,7 @@ export default function PaywallScreen() {
         {/* Pricing badge */}
         <View style={styles.pricingCard}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>$14.99</Text>
+            <Text style={styles.price}>{priceText}</Text>
             <Text style={styles.pricePer}>/month</Text>
           </View>
           <Text style={styles.pricingNote}>Cancel anytime. No commitment.</Text>
@@ -110,19 +281,30 @@ export default function PaywallScreen() {
 
         {/* Subscribe CTA */}
         <TouchableOpacity
-          style={styles.subscribeButton}
+          style={[styles.subscribeButton, isPurchasing && styles.subscribeButtonDisabled]}
           onPress={handleSubscribe}
           activeOpacity={0.85}
+          disabled={isPurchasing}
         >
-          <Ionicons name="star" size={20} color="#000" style={{ marginRight: 10 }} />
-          <Text style={styles.subscribeButtonText}>Subscribe for $14.99/mo</Text>
+          {isPurchasing ? (
+            <ActivityIndicator size="small" color="#000" style={{ marginRight: 10 }} />
+          ) : (
+            <Ionicons name="star" size={20} color="#000" style={{ marginRight: 10 }} />
+          )}
+          <Text style={styles.subscribeButtonText}>
+            {isPurchasing ? 'Processing...' : `Subscribe for ${priceText}/mo`}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.legalText}>
-          Payment processed securely via Stripe. You'll be taken to our website to complete the subscription. Cancel anytime from your account settings.
+          Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Account Settings.
         </Text>
 
-        <TouchableOpacity style={styles.noThanksButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.noThanksButton}
+          onPress={handleClose}
+          disabled={isPurchasing}
+        >
           <Text style={styles.noThanksText}>Not now</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -148,6 +330,37 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingText: {
+    color: COLORS.muted,
+    fontSize: 15,
+    marginTop: 16,
+  },
+  errorText: {
+    color: COLORS.muted,
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.muted,
+  },
+  retryText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
   },
   hero: {
     alignItems: 'center',
@@ -276,6 +489,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
+  },
+  subscribeButtonDisabled: {
+    opacity: 0.6,
   },
   subscribeButtonText: {
     color: '#000',

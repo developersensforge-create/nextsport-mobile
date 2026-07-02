@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import AnalysisResultScreen from '../screens/AnalysisResultScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import DrillsScreen from '../screens/DrillsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
+import { ensureIapConnection } from '../lib/iap';
 import { COLORS } from '../theme';
 
 export type MainTabParamList = {
@@ -111,6 +112,13 @@ function AppStack() {
 
 export default function AppNavigator() {
   const { session, loading } = useAuth();
+
+  // Initialize IAP connection on app startup (wrapped in try-catch to prevent crashes)
+  useEffect(() => {
+    ensureIapConnection().catch((err) => {
+      console.error('[AppNavigator] IAP init failed:', err);
+    });
+  }, []);
 
   if (loading) {
     return (
