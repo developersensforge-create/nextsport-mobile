@@ -46,13 +46,13 @@ workflows:
       - name: Build iOS Archive
         script: |
           xcodebuild \
-            -workspace ios/nextsport.xcworkspace \
+            -workspace ios/NextSport.xcworkspace \
             -scheme NextSport \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="NextSport AppStore Distribution v2" \
+            "PROVISIONING_PROFILE=4dd97dbd-ac51-4327-a32b-8ac23e5e286c" \
             DEVELOPMENT_TEAM="58BKXDS287" \
             clean archive
 
