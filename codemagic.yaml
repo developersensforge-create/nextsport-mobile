@@ -42,6 +42,10 @@ workflows:
         script: |
           npx expo prebuild --platform ios --clean
 
+      - name: Install CocoaPods
+        script: |
+          cd ios && pod install
+
       - name: Configure Xcode signing
         script: python3 scripts/patch_signing.py
 
