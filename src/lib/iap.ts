@@ -13,7 +13,7 @@ import {
 
 // ─── Product IDs (must match App Store Connect) ──────────────────────────
 export const IAP_SKUS = {
-  PREMIUM_MONTHLY: 'com.nextsport.premium.monthly',
+  PREMIUM_MONTHLY: 'com.nextsport.app.premium.monthly',
 } as const;
 
 export const IAP_PRODUCT_IDS = Object.values(IAP_SKUS);
