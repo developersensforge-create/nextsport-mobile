@@ -132,6 +132,7 @@ export default function YouTubePlayer({ videoId, startTime = 0, originalUrl }: Y
         mediaPlaybackRequiresUserAction={false}
         originWhitelist={['*']}
         scrollEnabled={false}
+        mixedContentMode="always"
         onMessage={handleMessage}
       />
     </View>

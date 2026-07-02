@@ -36,6 +36,7 @@ export default function RecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [videoMime, setVideoMime] = useState<string>('video/mp4');
+  const [videoDuration, setVideoDuration] = useState<number>(15);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
@@ -58,6 +59,8 @@ export default function RecordScreen() {
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       setVideoUri(video.uri);
+      // CameraView doesn't reliably return duration — default to 15s for recording
+      setVideoDuration(15);
     } catch (err: any) {
       Alert.alert('Recording Error', err.message ?? 'Failed to record video.');
     } finally {
@@ -82,6 +85,8 @@ export default function RecordScreen() {
       const asset = result.assets[0];
       setVideoUri(asset.uri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
+      // asset.duration is in milliseconds; convert to seconds (default 15 if unavailable)
+      setVideoDuration(asset.duration ? Math.round(asset.duration / 1000) : 15);
     }
   }
 
@@ -94,7 +99,7 @@ export default function RecordScreen() {
       const result = await submitAnalysis(videoUri, videoMime, (progress) => {
         // Cap at 95% during upload — the last 5% is server-side handoff
         setUploadProgress(Math.min(progress, 0.95));
-      });
+      }, videoDuration);
       // Upload complete — switch to processing phase
       setUploadProgress(1);
       setUploadPhase('processing');
@@ -111,6 +116,7 @@ export default function RecordScreen() {
   function resetVideo() {
     setVideoUri(null);
     setUploadProgress(0);
+    setVideoDuration(15);
   }
 
   // --- Video preview state ---

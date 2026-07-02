@@ -66,29 +66,62 @@ export async function submitAnalysis(
 ): Promise<{ id: string; analysisId?: string }> {
   const headers = await getAuthHeaders();
 
-  const formData = new FormData();
-  formData.append('video', {
-    uri: videoUri,
-    type: videoMimeType,
-    name: 'swing.mp4',
-  } as any);
+  // ── Step 1: Get a signed upload URL from the backend ──────────────────────
+  // The backend expects videoPath (Supabase Storage path), not a raw video file.
+  // We first request a signed upload URL, upload the video directly to Supabase
+  // Storage, then call /api/analyze with the storage path.
+  const uploadUrlResponse = await axios.post(
+    `${BASE_URL}/api/analyze/upload-url`,
+    { fileName: 'swing.mp4', contentType: videoMimeType },
+    { headers, timeout: 15000 }
+  );
 
-  // Always send duration so server can calculate token cost correctly
-  formData.append('duration', String(durationSeconds ?? 15));
+  const { uploadUrl, filePath } = uploadUrlResponse.data as {
+    uploadUrl: string;
+    token: string;
+    filePath: string;
+  };
 
-  const response = await axios.post(`${BASE_URL}/api/analyze`, formData, {
-    headers: {
-      ...headers,
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: 120000, // 2 min timeout for AI processing
-    onUploadProgress: (progressEvent) => {
-      if (onProgress && progressEvent.total) {
-        const progress = progressEvent.loaded / progressEvent.total;
-        onProgress(Math.min(progress, 0.95));
+  // ── Step 2: Upload the video directly to Supabase Storage via signed URL ──
+  // Use XMLHttpRequest for upload progress tracking (fetch doesn't support it).
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl, true);
+    xhr.setRequestHeader('Content-Type', videoMimeType);
+    xhr.upload.onprogress = (event) => {
+      if (onProgress && event.lengthComputable) {
+        // Report up to 90% during upload — last 10% is for the AI call
+        onProgress(Math.min((event.loaded / event.total) * 0.9, 0.9));
       }
-    },
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload network error'));
+
+    // React Native XHR can send a local file URI as the body directly
+    xhr.send({ uri: videoUri, type: videoMimeType, name: 'swing.mp4' } as any);
   });
+
+  // Signal upload complete — now waiting for AI
+  onProgress?.(0.95);
+
+  // ── Step 3: Trigger AI analysis with the storage path ─────────────────────
+  const response = await axios.post(
+    `${BASE_URL}/api/analyze`,
+    {
+      videoPath: filePath,
+      duration: durationSeconds ?? 15,
+    },
+    {
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      timeout: 120000, // 2 min timeout for AI processing
+    }
+  );
 
   return response.data;
 }

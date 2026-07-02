@@ -338,10 +338,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The worst fielders react late and reach. The best ones read the hop before it happens and have feet already moving.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
-      title: 'Top 3 At Home Infield Drills',
-      creator: 'NorthernBaseballTraining',
-      note: 'Watch from start — 0:02 mark',
+      url: 'https://www.youtube.com/watch?v=sGkiOMijWg4',
+      title: 'Infield Fielding Drills - Short Hop',
+      creator: 'Baseball Tutorials',
+      note: 'Full video — short hop footwork and positioning',
     },
   },
   {
@@ -364,10 +364,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'The backhand is all about the crossover step. If your first step is wrong, the play is over before it starts.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
-      title: 'Top 3 At Home Infield Drills',
-      creator: 'NorthernBaseballTraining',
-      note: 'Watch 0:02 – 0:05 mark (backhand segment)',
+      url: 'https://www.youtube.com/watch?v=0Z6d8iIQFz8',
+      title: 'BACKHAND DRILLS for Infielders',
+      creator: 'Baseball Excellence',
+      note: 'Full video — crossover step and backhand mechanics',
     },
   },
   {
@@ -390,10 +390,10 @@ export const DRILLS: Drill[] = [
     ],
     coachTip: 'On the forehand, you\'re almost always fielding on the run. Train your body to field and redirect in one smooth motion.',
     referenceVideo: {
-      url: 'https://youtube.com/shorts/cuEo-QTwmfw?si=yldIt4SWIXV-Dm02',
-      title: 'Top 3 At Home Infield Drills',
-      creator: 'NorthernBaseballTraining',
-      note: 'Watch 0:06 – 0:09 mark (forehand segment)',
+      url: 'https://www.youtube.com/watch?v=yM3VNnfLLlc',
+      title: 'How to Field a Forehand Ground Ball',
+      creator: 'Next Level Baseball',
+      note: 'Full video — forehand technique and footwork',
     },
   },
 
