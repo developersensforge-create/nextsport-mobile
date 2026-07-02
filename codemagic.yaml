@@ -43,6 +43,69 @@ workflows:
         script: |
           npx expo prebuild --platform ios --clean
 
+      - name: Configure Xcode signing
+        script: |
+          PBXPROJ="ios/NextSport.xcodeproj/project.pbxproj"
+          # Force manual signing: replace ProvisioningStyle = Automatic with Manual
+          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
+          # Set CODE_SIGN_STYLE to Manual for all build configs
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PBXPROJ"
+          # Inject PROVISIONING_PROFILE_SPECIFIER and CODE_SIGN_IDENTITY
+          # Use Python for reliable pbxproj editing
+          python3 << 'PYEOF'
+          import re
+
+          with open('ios/NextSport.xcodeproj/project.pbxproj', 'r') as f:
+              content = f.read()
+
+          # Find all Release buildSettings blocks and inject signing settings
+          # Pattern: find buildSettings blocks that have SDKROOT = iphoneos (Release config)
+          def inject_signing(m):
+              block = m.group(0)
+              # Only modify Release configs (not Debug)
+              if 'SDKROOT = iphoneos' not in block and 'iphoneos' not in block:
+                  return block
+              # Skip if it already has the right profile
+              if '4dd97dbd-ac51-4327-a32b-8ac23e5e286c' in block:
+                  return block
+              # Add signing settings before closing brace of buildSettings
+              additions = '''
+                          CODE_SIGN_IDENTITY = "Apple Distribution";
+                          CODE_SIGN_STYLE = Manual;
+                          DEVELOPMENT_TEAM = 58BKXDS287;
+                          PROVISIONING_PROFILE = "4dd97dbd-ac51-4327-a32b-8ac23e5e286c";
+                          PROVISIONING_PROFILE_SPECIFIER = "NextSport AppStore Distribution v2";'''
+              # Insert before the closing };
+              block = re.sub(r'(\s*\};?\s*$)', additions + r'\1', block, count=1)
+              return block
+
+          # Simpler approach: just replace all ProvisioningStyle occurrences and append to XCBuildConfiguration blocks
+          # Set CODE_SIGN_STYLE = Manual everywhere
+          content = re.sub(r'CODE_SIGN_STYLE\s*=\s*Automatic', 'CODE_SIGN_STYLE = Manual', content)
+          content = re.sub(r'ProvisioningStyle\s*=\s*Automatic', 'ProvisioningStyle = Manual', content)
+
+          # Remove any existing PROVISIONING_PROFILE lines to avoid duplicates
+          content = re.sub(r'\s*PROVISIONING_PROFILE\s*=\s*"[^"]*";\n', '\n', content)
+          content = re.sub(r'\s*PROVISIONING_PROFILE_SPECIFIER\s*=\s*"[^"]*";\n', '\n', content)
+
+          # Find Release buildSettings and add our profile
+          # Look for buildSettings blocks that contain SDKROOT = iphoneos (Release)
+          pattern = r'(buildSettings = \{[^}]*?SDKROOT = iphoneos;[^}]*?)(\s*\};)'
+          def add_profile(m):
+              return m.group(1) + '''
+                          CODE_SIGN_IDENTITY = "Apple Distribution";
+                          DEVELOPMENT_TEAM = 58BKXDS287;
+                          PROVISIONING_PROFILE = "4dd97dbd-ac51-4327-a32b-8ac23e5e286c";
+                          PROVISIONING_PROFILE_SPECIFIER = "NextSport AppStore Distribution v2";''' + m.group(2)
+
+          content = re.sub(pattern, add_profile, content, flags=re.DOTALL)
+
+          with open('ios/NextSport.xcodeproj/project.pbxproj', 'w') as f:
+              f.write(content)
+
+          print("Xcode signing configured successfully")
+          PYEOF
+
       - name: Build iOS Archive
         script: |
           xcodebuild \
