@@ -9,7 +9,7 @@ workflows:
         APP_STORE_CONNECT_KEY_IDENTIFIER: "C2345LX527"
         APP_STORE_CONNECT_ISSUER_ID: "5fd238fa-843c-4575-a581-bc0cb45b1798"
         BUNDLE_ID: "com.nextsport.app"
-      xcode: "16.0"
+      xcode: "16.2"
       node: latest
     scripts:
       - name: Install dependencies
@@ -41,6 +41,9 @@ workflows:
       - name: Expo prebuild
         script: |
           npx expo prebuild --platform ios --clean
+
+      - name: Patch Podfile
+        script: python3 scripts/patch_podfile.py
 
       - name: Install CocoaPods
         script: |

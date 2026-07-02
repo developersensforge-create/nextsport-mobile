@@ -1,13 +1,13 @@
 import re
-import sys
 
+# Patch pbxproj: force Manual signing for Release build
+# Must run AFTER expo prebuild (which regenerates ios/)
 pbxproj = 'ios/NextSport.xcodeproj/project.pbxproj'
 with open(pbxproj) as f:
     content = f.read()
 
 TEAM = '58BKXDS287'
 PROFILE_UUID = '4dd97dbd-ac51-4327-a32b-8ac23e5e286c'
-PROFILE_NAME = 'NextSport AppStore Distribution v2'
 
 signing_block = (
     '\n\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";'
@@ -36,5 +36,5 @@ with open(pbxproj, 'w') as f:
 with open(pbxproj) as f:
     verify = f.read()
 assert PROFILE_UUID in verify, "FAIL: UUID not found in pbxproj!"
-assert 'CODE_SIGN_STYLE = Manual' in verify, "FAIL: Manual not set!"
-print("OK: pbxproj patched successfully")
+assert 'CODE_SIGN_STYLE = Manual' in verify, "FAIL: Manual signing not set!"
+print("OK: pbxproj signing patched successfully")
