@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { Audio } from 'expo-av';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Sharing from 'expo-sharing';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -64,6 +64,57 @@ const gaugeStyles = StyleSheet.create({
   label: { fontSize: 16, fontWeight: '700', marginTop: 8 },
 });
 
+function AudioFeedbackCard({ audioUrl }: { audioUrl: string }) {
+  const player = useAudioPlayer({ uri: audioUrl }, { downloadFirst: true });
+  const status = useAudioPlayerStatus(player);
+  const [audioLoading, setAudioLoading] = useState(false);
+
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true });
+  }, []);
+
+  async function toggleAudio() {
+    if (status.playing) {
+      player.pause();
+      return;
+    }
+
+    setAudioLoading(true);
+    try {
+      player.play();
+    } catch {
+      Alert.alert('Audio Error', 'Could not play audio feedback.');
+    } finally {
+      setAudioLoading(false);
+    }
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.audioCard}
+      onPress={toggleAudio}
+      activeOpacity={0.85}
+    >
+      {audioLoading ? (
+        <ActivityIndicator size="small" color={COLORS.accent} />
+      ) : (
+        <Ionicons
+          name={status.playing ? 'pause-circle' : 'play-circle'}
+          size={36}
+          color={COLORS.accent}
+        />
+      )}
+      <View style={styles.audioInfo}>
+        <Text style={styles.audioTitle}>Audio Feedback</Text>
+        <Text style={styles.audioSubtitle}>
+          {status.playing ? 'Playing…' : 'Tap to listen to your coaching feedback'}
+        </Text>
+      </View>
+      <Ionicons name="volume-high" size={20} color={COLORS.muted} />
+    </TouchableOpacity>
+  );
+}
+
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
   const route = useRoute<ResultRouteProp>();
@@ -72,9 +123,6 @@ export default function AnalysisResultScreen() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioLoading, setAudioLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -95,47 +143,7 @@ export default function AnalysisResultScreen() {
       }
     }
     load();
-    return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
-    };
   }, [analysisId, poll]);
-
-  async function toggleAudio() {
-    if (!analysis?.audio_url) return;
-
-    if (sound) {
-      if (isPlaying) {
-        await sound.pauseAsync();
-        setIsPlaying(false);
-      } else {
-        await sound.playAsync();
-        setIsPlaying(true);
-      }
-      return;
-    }
-
-    setAudioLoading(true);
-    try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: analysis.audio_url },
-        { shouldPlay: true }
-      );
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setIsPlaying(false);
-        }
-      });
-      setSound(newSound);
-      setIsPlaying(true);
-    } catch (err: any) {
-      Alert.alert('Audio Error', 'Could not play audio feedback.');
-    } finally {
-      setAudioLoading(false);
-    }
-  }
 
   async function handleShare() {
     if (!analysis) return;
@@ -226,30 +234,7 @@ export default function AnalysisResultScreen() {
         {analysis.score !== null && <ScoreGauge score={analysis.score} />}
 
         {/* Audio feedback */}
-        {analysis.audio_url && (
-          <TouchableOpacity
-            style={styles.audioCard}
-            onPress={toggleAudio}
-            activeOpacity={0.85}
-          >
-            {audioLoading ? (
-              <ActivityIndicator size="small" color={COLORS.accent} />
-            ) : (
-              <Ionicons
-                name={isPlaying ? 'pause-circle' : 'play-circle'}
-                size={36}
-                color={COLORS.accent}
-              />
-            )}
-            <View style={styles.audioInfo}>
-              <Text style={styles.audioTitle}>Audio Feedback</Text>
-              <Text style={styles.audioSubtitle}>
-                {isPlaying ? 'Playing…' : 'Tap to listen to your coaching feedback'}
-              </Text>
-            </View>
-            <Ionicons name="volume-high" size={20} color={COLORS.muted} />
-          </TouchableOpacity>
-        )}
+        {analysis.audio_url && <AudioFeedbackCard audioUrl={analysis.audio_url} />}
 
         {/* Feedback sections */}
         {feedbackSections.length > 0 ? (

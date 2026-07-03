@@ -14,7 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { submitAnalysis } from '../lib/api';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
@@ -24,6 +24,22 @@ type RecordNavProp = StackNavigationProp<RootStackParamList, 'Record'>;
 type RecordRouteProp = RouteProp<RootStackParamList, 'Record'>;
 
 const TOKEN_COST = 10;
+
+function VideoPreview({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.videoPreview}
+      contentFit="contain"
+      nativeControls
+    />
+  );
+}
 
 export default function RecordScreen() {
   const navigation = useNavigation<RecordNavProp>();
@@ -140,13 +156,7 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          <Video
-            source={{ uri: videoUri }}
-            style={styles.videoPreview}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping
-          />
+          <VideoPreview uri={videoUri} />
         </View>
 
         <View style={styles.previewFooter}>

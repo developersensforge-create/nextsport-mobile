@@ -23,7 +23,10 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "ios": {
@@ -35,7 +38,8 @@
         "NSMicrophoneUsageDescription": "NextSport uses your microphone to capture audio when recording swing videos. Audio is included in your video upload and used only for analysis.",
         "NSPhotoLibraryUsageDescription": "NextSport accesses your photo library so you can select an existing swing video for AI analysis. Only the video you choose is accessed — your other photos are never browsed or stored.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "58BKXDS287"
     },
     "plugins": [
       [
@@ -46,7 +50,13 @@
         }
       ],
       "expo-iap",
-      "./plugins/withNetworkSecurityConfig"
+      "./plugins/withNetworkSecurityConfig",
+      "expo-sharing",
+      "expo-video",
+      "expo-web-browser",
+      "expo-audio",
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
       "eas": {
