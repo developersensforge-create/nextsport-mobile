@@ -61,6 +61,8 @@ workflows:
             -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
             OTHER_SWIFT_FLAGS="-strict-concurrency=minimal" \
             SWIFT_STRICT_CONCURRENCY=minimal \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
+            CLANG_ENABLE_EXPLICIT_MODULES=NO \
             clean archive
 
       - name: Export IPA
