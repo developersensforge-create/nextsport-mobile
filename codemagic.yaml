@@ -49,18 +49,6 @@ workflows:
         script: |
           cd ios && pod install
 
-      - name: Fix Xcode 26 explicit modules in xcconfig
-        script: |
-          # xcodebuild CLI flags don't propagate to Pods sub-project.
-          # Directly patch all generated xcconfig files after pod install.
-          find ios/Pods/Target\ Support\ Files -name "*.xcconfig" | while read f; do
-            if ! grep -q "SWIFT_ENABLE_EXPLICIT_MODULES" "$f"; then
-              echo "SWIFT_ENABLE_EXPLICIT_MODULES = NO" >> "$f"
-              echo "CLANG_ENABLE_EXPLICIT_MODULES = NO" >> "$f"
-            fi
-          done
-          echo "xcconfig patch done — $(find ios/Pods/Target\ Support\ Files -name '*.xcconfig' | wc -l) files patched"
-
       - name: Configure Xcode signing
         script: python3 scripts/patch_signing.py
 

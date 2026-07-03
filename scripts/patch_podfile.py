@@ -44,13 +44,26 @@ xcode26_patch = """
     # ────────────────────────────────────────────────────────────────────────────
 """
 
-old_post = "  post_install do |installer|\n    react_native_post_install("
-new_post = "  post_install do |installer|\n" + xcode26_patch + "    react_native_post_install("
+# Insert AFTER react_native_post_install() call, so our settings win over RN's.
+# react_native_post_install() sets SWIFT_ENABLE_EXPLICIT_MODULES=NO only when
+# !build_rncore_from_source() — which is false for RN 0.83 (builds from source).
+# So it sets YES (or leaves it as Xcode 26 default YES). We override AFTER it runs.
+old_end = "    react_native_post_install(\n      installer,\n      config[:reactNativePath],\n      :mac_catalyst_enabled => false,\n      :ccache_enabled => ccache_enabled?(podfile_properties),\n    )\n  end\nend"
+new_end = "    react_native_post_install(\n      installer,\n      config[:reactNativePath],\n      :mac_catalyst_enabled => false,\n      :ccache_enabled => ccache_enabled?(podfile_properties),\n    )\n" + xcode26_patch + "  end\nend"
 
 if 'SWIFT_ENABLE_EXPLICIT_MODULES' not in podfile:
-    podfile = podfile.replace(old_post, new_post)
-    with open(podfile_path, 'w') as f:
-        f.write(podfile)
-    print("Podfile: Xcode 26 SWIFT_ENABLE_EXPLICIT_MODULES patch applied OK")
+    if old_end in podfile:
+        podfile = podfile.replace(old_end, new_end)
+        with open(podfile_path, 'w') as f:
+            f.write(podfile)
+        print("Podfile: Xcode 26 SWIFT_ENABLE_EXPLICIT_MODULES patch applied OK (after react_native_post_install)")
+    else:
+        # Fallback: insert before react_native_post_install
+        old_post = "  post_install do |installer|\n    react_native_post_install("
+        new_post = "  post_install do |installer|\n" + xcode26_patch + "    react_native_post_install("
+        podfile = podfile.replace(old_post, new_post)
+        with open(podfile_path, 'w') as f:
+            f.write(podfile)
+        print("Podfile: Xcode 26 patch applied (before react_native_post_install — fallback)")
 else:
     print("Podfile: already patched, skipping")
