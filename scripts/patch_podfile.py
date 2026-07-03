@@ -31,6 +31,11 @@ xcode26_patch = """
         config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
         config.build_settings['SWIFT_VERSION'] = '5.9'
+        # Enable modular headers for ExpoModulesJSI so Swift can import it
+        if target.name == 'ExpoModulesJSI'
+          config.build_settings['DEFINES_MODULE'] = 'YES'
+          config.build_settings['MODULEMAP_FILE'] = ''
+        end
       end
     end
     installer.generated_projects.each do |project|
@@ -45,15 +50,7 @@ xcode26_patch = """
 
 """
 
-modular_headers_patch = "  pod 'ExpoModulesJSI', :modular_headers => true\n"
-target_line = "  use_expo_modules!"
 
-# 1. Add ExpoModulesJSI with modular_headers so Swift can import it
-if modular_headers_patch.strip() not in podfile:
-    podfile = podfile.replace(target_line, target_line + "\n" + modular_headers_patch)
-    print("Podfile: added ExpoModulesJSI modular_headers")
-else:
-    print("Podfile: ExpoModulesJSI modular_headers already present")
 # Insert AFTER react_native_post_install() call, so our settings win over RN's.
 # react_native_post_install() sets SWIFT_ENABLE_EXPLICIT_MODULES=NO only when
 # !build_rncore_from_source() — which is false for RN 0.83 (builds from source).
