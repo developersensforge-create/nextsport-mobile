@@ -14,7 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { submitAnalysis } from '../lib/api';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
@@ -41,6 +41,12 @@ export default function RecordScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
   const cameraRef = useRef<any>(null);
+
+  // expo-video: player must be created at top level (hook rules)
+  const videoPlayer = useVideoPlayer(videoUri ?? '', (p) => {
+    p.loop = true;
+    p.play();
+  });
 
   const requestCameraPermission = useCallback(async () => {
     const result = await requestPermission();
@@ -140,12 +146,11 @@ export default function RecordScreen() {
         </View>
 
         <View style={styles.videoPreviewContainer}>
-          <Video
-            source={{ uri: videoUri }}
+          <VideoView
+            player={videoPlayer}
             style={styles.videoPreview}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            isLooping
+            nativeControls
+            contentFit="contain"
           />
         </View>
 

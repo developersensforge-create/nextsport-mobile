@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { Audio } from 'expo-av';
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import * as Sharing from 'expo-sharing';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -72,9 +72,11 @@ export default function AnalysisResultScreen() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  // expo-audio: player is created lazily with null source, then replaced on first play
+  const player = useAudioPlayer(null);
+  const playerStatus = useAudioPlayerStatus(player);
+  const isPlaying = playerStatus.playing ?? false;
 
   useEffect(() => {
     async function load() {
@@ -96,40 +98,29 @@ export default function AnalysisResultScreen() {
     }
     load();
     return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
+
     };
   }, [analysisId, poll]);
 
   async function toggleAudio() {
     if (!analysis?.audio_url) return;
 
-    if (sound) {
-      if (isPlaying) {
-        await sound.pauseAsync();
-        setIsPlaying(false);
-      } else {
-        await sound.playAsync();
-        setIsPlaying(true);
-      }
+    if (isPlaying) {
+      player.pause();
+      return;
+    }
+
+    // If player already has the source loaded, just resume
+    if (playerStatus.currentTime !== undefined && playerStatus.currentTime > 0) {
+      player.play();
       return;
     }
 
     setAudioLoading(true);
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: analysis.audio_url },
-        { shouldPlay: true }
-      );
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setIsPlaying(false);
-        }
-      });
-      setSound(newSound);
-      setIsPlaying(true);
+      await setAudioModeAsync({ playsInSilentMode: true });
+      player.replace({ uri: analysis.audio_url });
+      player.play();
     } catch (err: any) {
       Alert.alert('Audio Error', 'Could not play audio feedback.');
     } finally {
