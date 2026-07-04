@@ -80,7 +80,9 @@ export async function closeIapConnection(): Promise<void> {
 // ─── Product Fetching ────────────────────────────────────────────────────
 export async function fetchIapProducts(): Promise<Product[]> {
   try {
-    const products = await fetchProducts({ skus: IAP_PRODUCT_IDS });
+    // type: 'subs' is required for subscription products — omitting it defaults
+    // to 'in-app' which returns an empty array for subscriptions on iOS.
+    const products = await fetchProducts({ skus: IAP_PRODUCT_IDS, type: 'subs' });
     return (Array.isArray(products) ? products : products ? [products] : []) as Product[];
   } catch (error) {
     console.error('[IAP] fetchProducts failed:', error);

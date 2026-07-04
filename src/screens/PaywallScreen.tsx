@@ -165,9 +165,10 @@ export default function PaywallScreen() {
       await purchaseProduct(product.productId);
       // Result handled by purchaseUpdatedListener
     } catch (error: any) {
-      console.error('[Paywall] purchaseProduct failed:', error);
+      console.error('[Paywall] purchaseProduct failed:', error?.code, error?.message, error);
       setState({ status: 'loaded', product });
-      Alert.alert('Error', 'Could not start purchase. Please try again.');
+      const msg = error?.message || error?.debugMessage || 'Could not start purchase. Please try again.';
+      Alert.alert('Error', msg);
     }
   }, [state]);
 
