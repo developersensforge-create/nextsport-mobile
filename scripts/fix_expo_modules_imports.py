@@ -1,45 +1,148 @@
 #!/usr/bin/env python3
 """
-Fix expo-modules-core 55.x Swift files for Xcode 26 compatibility.
+Fix expo-modules-core 55.x for Xcode 26 compatibility.
 
-Strategy: Replace problematic SDK 55 Swift files with their SDK 56 counterparts.
-SDK 56 has native Xcode 26 support and doesn't rely on implicit ObjC type imports.
+Root cause: Xcode 26 requires explicit module imports. expo-modules-core 55.x relied on
+implicit ObjC type visibility which Xcode 26 no longer provides.
 
-For files that were deleted/merged in SDK 56, we apply minimal targeted fixes.
+Solution:
+1. Install expo-modules-jsi@56 (the new standalone Swift package) into node_modules
+2. Patch ExpoModulesJSI.podspec to use the SDK56 Swift sources
+3. Replace problematic SDK55 Swift files with SDK56 versions (which use `import ExpoModulesJSI`)
 
-Run: python3 scripts/fix_expo_modules_imports.py
+This gives us a real Swift ExpoModulesJSI module that SDK56 Swift files can import.
 """
 import os
-import subprocess
 import shutil
 import tarfile
 import urllib.request
-import tempfile
 
-EXPO_CORE_IOS = "node_modules/expo-modules-core/ios"
+EXPO_CORE = "node_modules/expo-modules-core"
+EXPO_CORE_IOS = f"{EXPO_CORE}/ios"
+EXPO_MODULES_JSI_DIR = "node_modules/expo-modules-jsi"
 
-# ── Step 1: Download SDK 56 expo-modules-core ────────────────────────────────
-SDK56_VERSION = "56.0.19"
-SDK56_URL = f"https://registry.npmjs.org/expo-modules-core/-/expo-modules-core-{SDK56_VERSION}.tgz"
-SDK56_DIR = f"/tmp/expo-modules-core-sdk56"
+# ── Step 1: Download expo-modules-jsi@56.0.11 (standalone Swift package) ─────
+JSI56_VERSION = "56.0.11"
+JSI56_URL = f"https://registry.npmjs.org/expo-modules-jsi/-/expo-modules-jsi-{JSI56_VERSION}.tgz"
+JSI56_CACHE = f"/tmp/expo-modules-jsi-{JSI56_VERSION}"
 
-if not os.path.isdir(SDK56_DIR):
-    print(f"Downloading expo-modules-core@{SDK56_VERSION}...")
-    tgz_path = f"/tmp/expo-modules-core-{SDK56_VERSION}.tgz"
-    urllib.request.urlretrieve(SDK56_URL, tgz_path)
-    os.makedirs(SDK56_DIR, exist_ok=True)
-    with tarfile.open(tgz_path, "r:gz") as tar:
-        tar.extractall(SDK56_DIR)
+if not os.path.isdir(JSI56_CACHE):
+    print(f"Downloading expo-modules-jsi@{JSI56_VERSION}...")
+    tgz = f"/tmp/expo-modules-jsi-{JSI56_VERSION}.tgz"
+    urllib.request.urlretrieve(JSI56_URL, tgz)
+    os.makedirs(JSI56_CACHE, exist_ok=True)
+    with tarfile.open(tgz, "r:gz") as tar:
+        tar.extractall(JSI56_CACHE)
     print("Download complete.")
 else:
-    print(f"SDK56 already cached at {SDK56_DIR}")
+    print(f"expo-modules-jsi@{JSI56_VERSION} already cached")
 
-SDK56_IOS = os.path.join(SDK56_DIR, "package", "ios")
+JSI56_PKG = os.path.join(JSI56_CACHE, "package")
+JSI56_APPLE = os.path.join(JSI56_PKG, "apple")
+JSI56_SOURCES = os.path.join(JSI56_APPLE, "Sources", "ExpoModulesJSI")
 
-# ── Step 2: Replace SDK55 Swift files with SDK56 versions ───────────────────
-# These are the files that have Xcode 26 compilation errors in SDK55.
-# SDK56 rewrote them to not depend on implicit ObjC type visibility.
+# Install expo-modules-jsi into node_modules (for Podfile reference)
+if not os.path.isdir(EXPO_MODULES_JSI_DIR):
+    shutil.copytree(JSI56_PKG, EXPO_MODULES_JSI_DIR)
+    print(f"Installed expo-modules-jsi@{JSI56_VERSION} into {EXPO_MODULES_JSI_DIR}")
+else:
+    print(f"expo-modules-jsi already in node_modules")
 
+# ── Step 2: Replace ExpoModulesJSI.podspec with SDK56 version ────────────────
+# The SDK55 ExpoModulesJSI.podspec uses ObjC sources from ios/JSI/.
+# We replace it with the SDK56 version which uses the new Swift sources.
+sdk56_podspec = os.path.join(JSI56_APPLE, "ExpoModulesJSI.podspec")
+sdk55_podspec = os.path.join(EXPO_CORE, "ExpoModulesJSI.podspec")
+
+if os.path.isfile(sdk56_podspec):
+    # Read SDK56 podspec and fix the path references
+    with open(sdk56_podspec) as f:
+        content = f.read()
+    # SDK56 podspec references '../package.json' but we need to adjust the source path
+    # The SDK56 podspec source_files point to Sources/ExpoModulesJSI
+    # We'll copy the Swift sources into expo-modules-core/ios/JSI-Swift/ and point there
+    swift_dest = os.path.join(EXPO_CORE_IOS, "JSI-Swift")
+    if os.path.isdir(swift_dest):
+        shutil.rmtree(swift_dest)
+    shutil.copytree(JSI56_SOURCES, swift_dest)
+    print(f"Copied SDK56 ExpoModulesJSI Swift sources to {swift_dest}")
+
+    # Also copy Cxx sources
+    cxx_src = os.path.join(JSI56_APPLE, "Sources", "ExpoModulesJSI-Cxx")
+    cxx_dest = os.path.join(EXPO_CORE_IOS, "JSI-Cxx")
+    if os.path.isdir(cxx_src):
+        if os.path.isdir(cxx_dest):
+            shutil.rmtree(cxx_dest)
+        shutil.copytree(cxx_src, cxx_dest)
+        print(f"Copied SDK56 ExpoModulesJSI-Cxx sources to {cxx_dest}")
+
+    # Copy API notes if present
+    apinotes_src = os.path.join(JSI56_APPLE, "APINotes")
+    apinotes_dest = os.path.join(EXPO_CORE_IOS, "JSI-APINotes")
+    if os.path.isdir(apinotes_src):
+        if os.path.isdir(apinotes_dest):
+            shutil.rmtree(apinotes_dest)
+        shutil.copytree(apinotes_src, apinotes_dest)
+
+    # Write a new ExpoModulesJSI.podspec that uses these Swift sources
+    new_podspec = f"""require 'json'
+
+package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
+
+Pod::Spec.new do |s|
+  s.name           = 'ExpoModulesJSI'
+  s.version        = package['version']
+  s.summary        = package['description']
+  s.description    = package['description']
+  s.license        = package['license']
+  s.author         = package['author']
+  s.homepage       = package['homepage']
+  s.platforms      = {{ :ios => '15.1' }}
+  s.swift_version  = '6.0'
+  s.source         = {{ git: 'https://github.com/expo/expo.git' }}
+  s.static_framework = true
+  s.header_dir     = 'ExpoModulesJSI'
+
+  s.dependency 'hermes-engine'
+  s.dependency 'React-Core'
+  s.dependency 'ReactCommon'
+  s.dependency 'React-runtimescheduler'
+
+  s.source_files = [
+    'ios/JSI-Swift/**/*.{{h,m,mm,swift,cpp}}',
+    'ios/JSI-Cxx/**/*.{{h,m,mm,cpp}}',
+  ]
+  s.pod_target_xcconfig = {{
+    'DEFINES_MODULE' => 'YES',
+    'SWIFT_INCLUDE_PATHS' => '$(PODS_TARGET_SRCROOT)/ios/JSI-Cxx',
+  }}
+end
+"""
+    with open(sdk55_podspec, "w") as f:
+        f.write(new_podspec)
+    print("Patched ExpoModulesJSI.podspec to use SDK56 Swift sources")
+else:
+    print(f"WARNING: SDK56 podspec not found at {sdk56_podspec}")
+
+# ── Step 3: Download SDK56 expo-modules-core and replace Swift files ──────────
+SDK56_VERSION = "56.0.19"
+SDK56_URL = f"https://registry.npmjs.org/expo-modules-core/-/expo-modules-core-{SDK56_VERSION}.tgz"
+SDK56_CACHE = f"/tmp/expo-modules-core-sdk56"
+
+if not os.path.isdir(SDK56_CACHE):
+    print(f"Downloading expo-modules-core@{SDK56_VERSION}...")
+    tgz = f"/tmp/expo-modules-core-{SDK56_VERSION}.tgz"
+    urllib.request.urlretrieve(SDK56_URL, tgz)
+    os.makedirs(SDK56_CACHE, exist_ok=True)
+    with tarfile.open(tgz, "r:gz") as tar:
+        tar.extractall(SDK56_CACHE)
+    print("Download complete.")
+else:
+    print(f"SDK56 expo-modules-core already cached")
+
+SDK56_IOS = os.path.join(SDK56_CACHE, "package", "ios")
+
+# Files to replace with SDK56 versions
 FILES_TO_REPLACE = [
     "Core/AppContext.swift",
     "Core/ArrayBuffers/AnyArrayBuffer.swift",
@@ -105,7 +208,6 @@ FILES_TO_REPLACE = [
 ]
 
 replaced = 0
-skipped = 0
 for rel in FILES_TO_REPLACE:
     src = os.path.join(SDK56_IOS, rel)
     dst = os.path.join(EXPO_CORE_IOS, rel)
@@ -115,77 +217,36 @@ for rel in FILES_TO_REPLACE:
         replaced += 1
     else:
         print(f"  SKIP (not in SDK56): {rel}")
-        skipped += 1
 
-print(f"Replaced {replaced} Swift files with SDK56 versions ({skipped} skipped)")
+print(f"Replaced {replaced} Swift files with SDK56 versions")
 
-# ── Step 3: Fix remaining files not in SDK56 ─────────────────────────────────
-# These files were deleted/merged in SDK56. We apply minimal fixes.
+# Stub out SDK55-only files that SDK56 deleted (would cause duplicate symbols)
+stubs = [
+    "Core/AppContextFactory.swift",
+    "Core/ArrayBuffers/ArrayBufferExtensions.swift",
+    "Core/ArrayBuffers/ConcreteArrayBuffers.swift",
+    "Core/DynamicTypes/DynamicEncodableType.swift",
+    "Core/JavaScriptFunction.swift",
+]
+for rel in stubs:
+    path = os.path.join(EXPO_CORE_IOS, rel)
+    if os.path.isfile(path):
+        with open(path, "w") as f:
+            f.write(f"// {os.path.basename(rel)} removed in SDK56 — stubbed for compatibility\n")
+        print(f"Stubbed: {rel}")
 
-# Core/AppContextFactory.swift — uses EXAppContextProtocol, EXAppContextFactoryProtocol
-# These are ObjC protocols. Just add @_implementationOnly or mark the types as Any.
-# Simplest fix: delete the file (AppContextFactory was merged into AppContext in SDK56)
-factory_path = os.path.join(EXPO_CORE_IOS, "Core/AppContextFactory.swift")
-if os.path.isfile(factory_path):
-    with open(factory_path) as f:
-        content = f.read()
-    # Check if SDK56 AppContext.swift already has this content merged
-    # If so, we can safely delete it to avoid duplicate symbol errors
-    # Actually safer: just comment out the body and leave an empty file
-    with open(factory_path, "w") as f:
-        f.write("// AppContextFactory merged into AppContext in SDK56 — file retained for SDK55 compatibility\n")
-    print("Fixed: AppContextFactory.swift (emptied)")
+# Copy Worklets files from SDK56
+worklets_files = [
+    ("Worklets/Core/DynamicSerializableType.swift", "Core/DynamicTypes/DynamicSerializableType.swift"),
+    ("Worklets/Core/DynamicWorkletType.swift", "Core/DynamicTypes/DynamicWorkletType.swift"),
+    ("Worklets/Core/Serializable.swift", "Core/Worklets/Serializable.swift"),
+]
+for src_rel, dst_rel in worklets_files:
+    src = os.path.join(SDK56_IOS, src_rel)
+    dst = os.path.join(EXPO_CORE_IOS, dst_rel)
+    if os.path.isfile(src):
+        shutil.copy2(src, dst)
+        print(f"Copied from SDK56 Worklets: {dst_rel}")
 
-# Core/ArrayBuffers/ConcreteArrayBuffers.swift — uses RawArrayBuffer, RawNativeArrayBuffer
-# These are ObjC types. In SDK56 the array buffer system was rewritten.
-# Delete: SDK56 AnyArrayBuffer.swift no longer references these concrete types.
-concrete_path = os.path.join(EXPO_CORE_IOS, "Core/ArrayBuffers/ConcreteArrayBuffers.swift")
-if os.path.isfile(concrete_path):
-    with open(concrete_path, "w") as f:
-        f.write("// ConcreteArrayBuffers removed in SDK56 — file retained as stub for SDK55 compatibility\n")
-    print("Fixed: ConcreteArrayBuffers.swift (emptied)")
-
-# Core/ArrayBuffers/ArrayBufferExtensions.swift — NativeArrayBuffer type issues
-ext_path = os.path.join(EXPO_CORE_IOS, "Core/ArrayBuffers/ArrayBufferExtensions.swift")
-if os.path.isfile(ext_path):
-    with open(ext_path, "w") as f:
-        f.write("// ArrayBufferExtensions removed in SDK56 — file retained as stub for SDK55 compatibility\n")
-    print("Fixed: ArrayBufferExtensions.swift (emptied)")
-
-# Core/DynamicTypes/DynamicEncodableType.swift — JavaScriptValue
-dyn_enc_path = os.path.join(EXPO_CORE_IOS, "Core/DynamicTypes/DynamicEncodableType.swift")
-if os.path.isfile(dyn_enc_path):
-    with open(dyn_enc_path, "w") as f:
-        f.write("// DynamicEncodableType removed in SDK56 — file retained as stub for SDK55 compatibility\n")
-    print("Fixed: DynamicEncodableType.swift (emptied)")
-
-# Core/DynamicTypes/DynamicSerializableType.swift — moved to Worklets in SDK56
-dyn_ser_path = os.path.join(EXPO_CORE_IOS, "Core/DynamicTypes/DynamicSerializableType.swift")
-sdk56_dyn_ser = os.path.join(SDK56_DIR, "package/ios/Worklets/Core/DynamicSerializableType.swift")
-if os.path.isfile(sdk56_dyn_ser) and os.path.isfile(dyn_ser_path):
-    shutil.copy2(sdk56_dyn_ser, dyn_ser_path)
-    print("Fixed: DynamicSerializableType.swift (copied from SDK56 Worklets)")
-
-# Core/DynamicTypes/DynamicWorkletType.swift — moved to Worklets in SDK56
-dyn_wk_path = os.path.join(EXPO_CORE_IOS, "Core/DynamicTypes/DynamicWorkletType.swift")
-sdk56_dyn_wk = os.path.join(SDK56_DIR, "package/ios/Worklets/Core/DynamicWorkletType.swift")
-if os.path.isfile(sdk56_dyn_wk) and os.path.isfile(dyn_wk_path):
-    shutil.copy2(sdk56_dyn_wk, dyn_wk_path)
-    print("Fixed: DynamicWorkletType.swift (copied from SDK56 Worklets)")
-
-# Core/JavaScriptFunction.swift — uses RawJavaScriptFunction, JavaScriptObject, JavaScriptValue
-# In SDK56 this was removed. Stub it out.
-jsfunc_path = os.path.join(EXPO_CORE_IOS, "Core/JavaScriptFunction.swift")
-if os.path.isfile(jsfunc_path):
-    with open(jsfunc_path, "w") as f:
-        f.write("// JavaScriptFunction removed in SDK56 — file retained as stub for SDK55 compatibility\n")
-    print("Fixed: JavaScriptFunction.swift (emptied)")
-
-# Core/Worklets/Serializable.swift
-ser_path = os.path.join(EXPO_CORE_IOS, "Core/Worklets/Serializable.swift")
-sdk56_ser = os.path.join(SDK56_DIR, "package/ios/Worklets/Core/Serializable.swift")
-if os.path.isfile(sdk56_ser) and os.path.isfile(ser_path):
-    shutil.copy2(sdk56_ser, ser_path)
-    print("Fixed: Worklets/Serializable.swift (copied from SDK56 Worklets)")
-
-print("\nexpo-modules-core: all Xcode 26 compatibility fixes applied")
+print("\nexpo-modules-core: all Xcode 26 fixes applied")
+print("ExpoModulesJSI: upgraded to SDK56 Swift module")
