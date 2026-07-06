@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,8 +24,10 @@ import {
   onPurchaseError,
   IAP_SKUS,
   isIapConnected,
+  verifyGooglePurchase,
 } from '../lib/iap';
 import type { Product, Purchase } from 'expo-iap';
+import { supabase } from '../lib/supabase';
 
 type PaywallNavProp = StackNavigationProp<RootStackParamList, 'Paywall'>;
 
@@ -39,6 +42,7 @@ type LoadState =
   | { status: 'loaded'; product: ProductInfo }
   | { status: 'error'; message: string }
   | { status: 'purchasing'; product: ProductInfo };
+
 
 const FEATURES = [
   {
@@ -114,11 +118,34 @@ export default function PaywallScreen() {
   // ── Listen for purchase updates/errors ──────────────────────────────
   useEffect(() => {
     const purchaseSub = onPurchaseUpdated(async (purchase: Purchase) => {
-      console.log('[Paywall] Purchase updated:', (purchase as any).transactionId);
+      console.log('[Paywall] Purchase updated:', (purchase as any).transactionId, 'platform:', Platform.OS);
       try {
-        await completePurchase(purchase, false);
+        if (Platform.OS === 'android') {
+          // Android: verify with Google Play backend, then finish transaction
+          const purchaseToken = (purchase as any).purchaseToken ?? (purchase as any).dataAndroid;
+          const productId = (purchase as any).productId ?? IAP_SKUS.PREMIUM_MONTHLY;
+
+          if (!purchaseToken) {
+            throw new Error('Missing purchaseToken in Android purchase');
+          }
+
+          // Get auth headers
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) throw new Error('Not authenticated');
+          const authHeaders = { Authorization: `Bearer ${session.access_token}` };
+
+          // Verify with backend (activates premium + grants tokens)
+          await verifyGooglePurchase(purchaseToken, productId, authHeaders);
+
+          // Acknowledge the purchase (required by Google within 3 days)
+          await completePurchase(purchase, false);
+
+        } else {
+          // iOS: finish transaction (Apple receipt verified separately via webhook)
+          await completePurchase(purchase, false);
+        }
       } catch (err) {
-        console.error('[Paywall] finishTransaction failed:', err);
+        console.error('[Paywall] purchase processing failed:', err);
       }
       Alert.alert('Purchase Complete', 'Your premium subscription is now active!', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -163,7 +190,7 @@ export default function PaywallScreen() {
 
     try {
       await purchaseProduct(product.productId);
-      // Result handled by purchaseUpdatedListener
+      // Result handled by purchaseUpdatedListener (both iOS and Android)
     } catch (error: any) {
       console.error('[Paywall] purchaseProduct failed:', error?.code, error?.message, error);
       setState({ status: 'loaded', product });
@@ -298,7 +325,9 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         <Text style={styles.legalText}>
-          Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Account Settings.
+          {Platform.OS === 'android'
+            ? 'Payment will be charged to your Google Play account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Google Play → Subscriptions.'
+            : 'Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Account Settings.'}
         </Text>
 
         <TouchableOpacity

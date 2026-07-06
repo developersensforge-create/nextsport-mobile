@@ -107,6 +107,30 @@ export async function purchaseProduct(sku: string): Promise<Purchase | Purchase[
   });
 }
 
+// ─── Android Purchase Verification ──────────────────────────────────────────
+
+/**
+ * Verify a Google Play purchase with our backend and activate premium.
+ * Must be called after a successful purchase on Android.
+ */
+export async function verifyGooglePurchase(
+  purchaseToken: string,
+  productId: string,
+  authHeaders: Record<string, string>
+): Promise<{ success: boolean; plan: string; expires_date: string | null }> {
+  const BASE_URL = 'https://nextsport-sensforge.vercel.app';
+  const res = await fetch(`${BASE_URL}/api/google/verify-purchase`, {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purchase_token: purchaseToken, product_id: productId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || `Verification failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function completePurchase(
   purchase: Purchase,
   isConsumable: boolean = false,
