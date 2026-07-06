@@ -101,6 +101,7 @@ export async function purchaseProduct(sku: string): Promise<Purchase | Purchase[
   return requestPurchase({
     request: {
       apple: { sku },
+      google: { skus: [sku] },
     },
     type: 'subs',
   });

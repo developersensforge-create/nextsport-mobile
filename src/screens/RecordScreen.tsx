@@ -111,6 +111,7 @@ export default function RecordScreen() {
     setUploading(true);
     setUploadProgress(0);
     setUploadPhase('uploading');
+    let navigated = false;
     try {
       const result = await submitAnalysis(videoUri, videoMime, (progress) => {
         // Cap at 95% during upload — the last 5% is server-side handoff
@@ -119,13 +120,21 @@ export default function RecordScreen() {
       // Upload complete — switch to processing phase
       setUploadProgress(1);
       setUploadPhase('processing');
+      navigated = true;
+      // Reset state before navigating to avoid state updates on unmounted component
+      setUploading(false);
+      setUploadPhase('idle');
       navigation.replace('AnalysisResult', { analysisId: result.analysisId ?? result.id, poll: true });
     } catch (err: any) {
       setUploadPhase('idle');
+      setUploading(false);
       const message = err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.';
       Alert.alert('Upload Failed', message, [{ text: 'Try Again' }]);
     } finally {
-      setUploading(false);
+      // Only reset uploading if we haven't already (i.e. didn't navigate away)
+      if (!navigated) {
+        setUploading(false);
+      }
     }
   }
 
