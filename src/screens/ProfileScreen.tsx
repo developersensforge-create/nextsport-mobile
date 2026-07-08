@@ -82,7 +82,11 @@ export default function ProfileScreen() {
   }
 
   async function handleManageBilling() {
-    await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
+    try {
+      await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
+    } catch (err) {
+      console.warn('[Profile] openBrowserAsync failed:', err);
+    }
   }
 
   async function handleShareReferral() {
@@ -122,7 +126,7 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarInitial}>
-              {(profile?.full_name ?? user?.email ?? 'A')[0].toUpperCase()}
+              {((profile?.full_name || user?.email || 'A')[0] ?? 'A').toUpperCase()}
             </Text>
           </View>
           <Text style={styles.name}>{profile?.full_name ?? 'Athlete'}</Text>
@@ -218,19 +222,19 @@ export default function ProfileScreen() {
           <SettingsRow
             icon="help-circle-outline"
             label="Help & FAQ"
-            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/faq')}
+            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/faq').catch(() => {})}
           />
           <View style={styles.rowDivider} />
           <SettingsRow
             icon="document-text-outline"
             label="Terms of Service"
-            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms')}
+            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms').catch(() => {})}
           />
           <View style={styles.rowDivider} />
           <SettingsRow
             icon="shield-checkmark-outline"
             label="Privacy Policy"
-            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy')}
+            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}
           />
         </View>
 

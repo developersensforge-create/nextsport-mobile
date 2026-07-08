@@ -136,6 +136,10 @@ export default function DrillsScreen() {
                 source={{ uri: getYouTubeThumbnail(item.referenceVideo.url)! }}
                 style={styles.cardThumb}
                 resizeMode="cover"
+                onError={() => {
+                  // BUG-11: 图片加载失败时静默处理，fallback 由条件渲染保证
+                  console.warn('[DrillsScreen] thumbnail load failed');
+                }}
               />
             ) : (
               <View style={[styles.iconBox, { backgroundColor: TOPIC_COLORS[item.topic] + '18' }]}>

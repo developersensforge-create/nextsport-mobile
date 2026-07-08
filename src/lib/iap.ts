@@ -98,13 +98,19 @@ export async function fetchIapProducts(): Promise<Product[]> {
  * initial dispatch response and may be null.
  */
 export async function purchaseProduct(sku: string): Promise<Purchase | Purchase[] | null> {
-  return requestPurchase({
-    request: {
-      apple: { sku },
-      google: { skus: [sku] },
-    },
-    type: 'subs',
-  });
+  // BUG-05: 包裹 try/catch，确保 StoreKit 异常被标准化为 JS Error
+  try {
+    return await requestPurchase({
+      request: {
+        apple: { sku },
+        google: { skus: [sku] },
+      },
+      type: 'subs',
+    });
+  } catch (error: any) {
+    // Re-throw with normalized shape so callers can reliably catch
+    throw error instanceof Error ? error : new Error(error?.message ?? 'Purchase request failed');
+  }
 }
 
 // ─── Android Purchase Verification ──────────────────────────────────────────

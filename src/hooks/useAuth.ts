@@ -20,13 +20,18 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState({
-        session,
-        user: session?.user ?? null,
-        loading: false,
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setState({
+          session,
+          user: session?.user ?? null,
+          loading: false,
+        });
+      })
+      .catch((err) => {
+        console.error('[useAuth] getSession failed:', err);
+        setState({ session: null, user: null, loading: false });
       });
-    });
 
     const {
       data: { subscription },

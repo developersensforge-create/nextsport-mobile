@@ -119,6 +119,7 @@ export default function PaywallScreen() {
   useEffect(() => {
     const purchaseSub = onPurchaseUpdated(async (purchase: Purchase) => {
       console.log('[Paywall] Purchase updated:', (purchase as any).transactionId, 'platform:', Platform.OS);
+      let purchaseSuccess = false;
       try {
         if (Platform.OS === 'android') {
           // Android: verify with Google Play backend, then finish transaction
@@ -144,12 +145,16 @@ export default function PaywallScreen() {
           // iOS: finish transaction (Apple receipt verified separately via webhook)
           await completePurchase(purchase, false);
         }
+        purchaseSuccess = true;
       } catch (err) {
         console.error('[Paywall] purchase processing failed:', err);
+        Alert.alert('Purchase Error', 'Your payment was received but activation failed. Please restart the app or contact support.');
       }
-      Alert.alert('Purchase Complete', 'Your premium subscription is now active!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      if (purchaseSuccess) {
+        Alert.alert('Purchase Complete', 'Your premium subscription is now active!', [
+          { text: 'OK', onPress: () => { try { navigation.goBack(); } catch (_) {} } },
+        ]);
+      }
     });
 
     const errorSub = onPurchaseError((error) => {

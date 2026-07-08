@@ -70,7 +70,10 @@ function AudioFeedbackCard({ audioUrl }: { audioUrl: string }) {
   const [audioLoading, setAudioLoading] = useState(false);
 
   useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true });
+    // BUG-10: setAudioModeAsync 是异步操作，需要 await 并处理错误
+    setAudioModeAsync({ playsInSilentMode: true }).catch((err) => {
+      console.warn('[AudioFeedback] setAudioModeAsync failed:', err);
+    });
   }, []);
 
   async function toggleAudio() {
@@ -118,31 +121,48 @@ function AudioFeedbackCard({ audioUrl }: { audioUrl: string }) {
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
   const route = useRoute<ResultRouteProp>();
-  const { analysisId, poll } = route.params;
+
+  // BUG-03: route.params 可能为 undefined（深链接/push通知跳转）
+  const params = route.params ?? {};
+  const analysisId = (params as any).analysisId as string | undefined;
+  const poll = (params as any).poll as boolean | undefined;
 
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // BUG-02: 添加 cancelled flag，防止 unmount 后 setState
+    let cancelled = false;
+
     async function load() {
-      setLoading(true);
-      setError(null);
+      if (!analysisId) {
+        if (!cancelled) {
+          setError('Invalid analysis ID.');
+          setLoading(false);
+        }
+        return;
+      }
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
       try {
         if (poll) {
           const result = await pollAnalysis(analysisId);
-          setAnalysis(result);
+          if (!cancelled) setAnalysis(result);
         } else {
           const result = await getAnalysis(analysisId);
-          setAnalysis(result);
+          if (!cancelled) setAnalysis(result);
         }
       } catch (err: any) {
-        setError(err.message ?? 'Failed to load analysis.');
+        if (!cancelled) setError(err.message ?? 'Failed to load analysis.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
+    return () => { cancelled = true; };
   }, [analysisId, poll]);
 
   async function handleShare() {

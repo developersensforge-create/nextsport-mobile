@@ -109,7 +109,7 @@ export default function YouTubePlayer({ videoId, startTime = 0, originalUrl }: Y
         <View style={styles.overlay}>
           <TouchableOpacity
             style={styles.openButton}
-            onPress={() => Linking.openURL(watchUrl)}
+            onPress={() => Linking.openURL(watchUrl).catch((err) => console.warn('[YouTubePlayer] openURL failed:', err))}
             activeOpacity={0.85}
           >
             <Ionicons name="logo-youtube" size={22} color="#fff" />

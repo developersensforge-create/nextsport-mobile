@@ -48,8 +48,21 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadAnalyses();
+      // BUG-07: useFocusEffect 回调必须是同步的，异步操作用内部 flag 保护
+      let cancelled = false;
+      async function loadAsync() {
+        try {
+          const data = await getAnalyses();
+          if (!cancelled) setAnalyses(data.slice(0, 5));
+        } catch {
+          // silently fail
+        } finally {
+          if (!cancelled) setAnalysesLoading(false);
+        }
+      }
+      loadAsync();
       refetchProfile();
+      return () => { cancelled = true; };
     }, [refetchProfile])
   );
 
@@ -60,7 +73,9 @@ export default function HomeScreen() {
   }
 
   function handleRecord() {
-    if (profile && profile.tokens_remaining <= 0) {
+    // BUG-14: profile 为 null（加载中）时不应允许进入，避免 token 检查被绕过
+    if (!profile) return;
+    if (profile.tokens_remaining <= 0) {
       navigation.navigate('Paywall');
       return;
     }
@@ -68,7 +83,9 @@ export default function HomeScreen() {
   }
 
   function handleUpload() {
-    if (profile && profile.tokens_remaining <= 0) {
+    // BUG-14: 同上
+    if (!profile) return;
+    if (profile.tokens_remaining <= 0) {
       navigation.navigate('Paywall');
       return;
     }

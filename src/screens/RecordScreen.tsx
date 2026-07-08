@@ -74,6 +74,11 @@ export default function RecordScreen() {
     setIsRecording(true);
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
+      // BUG-09: 录制被系统中断时 video 可能为 null（电话来电、权限撤销等）
+      if (!video?.uri) {
+        console.warn('[RecordScreen] recordAsync returned null or no uri');
+        return;
+      }
       setVideoUri(video.uri);
       // CameraView doesn't reliably return duration — default to 15s for recording
       setVideoDuration(15);
