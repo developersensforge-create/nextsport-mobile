@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../hooks/useAuth';
 import { COLORS } from '../theme';
 
@@ -156,6 +157,27 @@ export default function AuthScreen() {
                 </Text>
               </Text>
             </TouchableOpacity>
+
+            {/* EULA consent text (signup only) */}
+            {mode === 'signup' && (
+              <Text style={styles.legalText}>
+                By creating an account, you agree to our{' '}
+                <Text
+                  style={styles.legalLink}
+                  onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms').catch(() => {})}
+                >
+                  Terms of Service
+                </Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.legalLink}
+                  onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}
+                >
+                  Privacy Policy
+                </Text>
+                .
+              </Text>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -262,5 +284,16 @@ const styles = StyleSheet.create({
   toggleLink: {
     color: COLORS.accent,
     fontWeight: '600',
+  },
+  legalText: {
+    textAlign: 'center',
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  legalLink: {
+    color: COLORS.accent,
+    textDecorationLine: 'underline',
   },
 });

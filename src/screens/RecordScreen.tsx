@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,8 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
 import { submitAnalysis } from '../lib/api';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
@@ -48,6 +51,10 @@ export default function RecordScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
+
+  // AI consent modal state
+  const [showAiConsent, setShowAiConsent] = useState(false);
+  const [pendingAnalyze, setPendingAnalyze] = useState(false);
   const [mode, setMode] = useState<'record' | 'upload'>(initialMode);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const [isRecording, setIsRecording] = useState(false);
@@ -118,6 +125,32 @@ export default function RecordScreen() {
 
   async function handleAnalyze() {
     if (!videoUri) return;
+
+    // Check if user has already consented to AI data sharing
+    const consented = await AsyncStorage.getItem('ai_consent_v1');
+    if (!consented) {
+      setShowAiConsent(true);
+      setPendingAnalyze(true);
+      return;
+    }
+
+    await doAnalyze();
+  }
+
+  async function handleConsentAgree() {
+    await AsyncStorage.setItem('ai_consent_v1', 'true');
+    setShowAiConsent(false);
+    setPendingAnalyze(false);
+    await doAnalyze();
+  }
+
+  function handleConsentDecline() {
+    setShowAiConsent(false);
+    setPendingAnalyze(false);
+  }
+
+  async function doAnalyze() {
+    if (!videoUri) return;
     setUploading(true);
     setUploadProgress(0);
     setUploadPhase('uploading');
@@ -166,6 +199,35 @@ export default function RecordScreen() {
               : `Uploading video… ${Math.round(uploadProgress * 100)}%\n\nPlease keep the app open.`
           }
         />
+
+        {/* AI Data Consent Modal */}
+        <Modal
+          visible={showAiConsent}
+          transparent
+          animationType="fade"
+          onRequestClose={handleConsentDecline}
+        >
+          <View style={styles.consentOverlay}>
+            <View style={styles.consentCard}>
+              <Ionicons name="shield-checkmark-outline" size={36} color={COLORS.accent} style={{ marginBottom: 12 }} />
+              <Text style={styles.consentTitle}>AI Analysis</Text>
+              <Text style={styles.consentBody}>
+                NextSport uses AI to analyze your swing. Your video will be securely sent to our AI service for analysis and will be handled in accordance with our Privacy Policy.
+              </Text>
+              <TouchableOpacity
+                onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}
+              >
+                <Text style={styles.consentLink}>View Privacy Policy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.consentAgreeButton} onPress={handleConsentAgree}>
+                <Text style={styles.consentAgreeText}>I Agree — Analyze My Swing</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.consentDeclineButton} onPress={handleConsentDecline}>
+                <Text style={styles.consentDeclineText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
         <View style={styles.previewHeader}>
           <TouchableOpacity onPress={resetVideo} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -635,5 +697,63 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     fontSize: 12,
     marginTop: 4,
+  },
+  consentOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  consentCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    width: '100%',
+  },
+  consentTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  consentBody: {
+    color: COLORS.muted,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  consentLink: {
+    color: COLORS.accent,
+    fontSize: 13,
+    textDecorationLine: 'underline',
+    marginBottom: 24,
+  },
+  consentAgreeButton: {
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 10,
+  },
+  consentAgreeText: {
+    color: '#000',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  consentDeclineButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    width: '100%',
+  },
+  consentDeclineText: {
+    color: COLORS.muted,
+    fontSize: 14,
   },
 });

@@ -19,6 +19,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
 import { getReferral } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 
@@ -75,6 +76,46 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  }
+
+  async function handleDeleteAccount() {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your data (analyses, progress, subscription). This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation
+            Alert.alert(
+              'Are you sure?',
+              'Your account and all associated data will be permanently deleted.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session?.user?.id) throw new Error('Not authenticated');
+                      // Call delete-account edge function
+                      const { error } = await supabase.functions.invoke('delete-account', {});
+                      if (error) throw error;
+                      await signOut();
+                    } catch (err: any) {
+                      Alert.alert('Error', err.message ?? 'Failed to delete account. Please contact support@nextsport.app.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   }
 
   async function handleUpgrade() {
@@ -242,6 +283,12 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.85}>
           <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
           <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+
+        {/* Delete account */}
+        <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount} activeOpacity={0.85}>
+          <Ionicons name="trash-outline" size={18} color={COLORS.muted} />
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
         </TouchableOpacity>
 
         <Text style={styles.version}>NextSport v1.0.0</Text>
@@ -493,5 +540,18 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 12,
     textAlign: 'center',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  deleteAccountText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginLeft: 6,
+    textDecorationLine: 'underline',
   },
 });

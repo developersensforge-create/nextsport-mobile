@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../theme';
@@ -313,6 +314,11 @@ export default function PaywallScreen() {
         </View>
 
         {/* Subscribe CTA */}
+        <View style={styles.subscriptionInfoBlock}>
+          <Text style={styles.subscriptionTitle}>NextSport Premium · Monthly</Text>
+          <Text style={styles.subscriptionPeriod}>{priceText} / month · Auto-renews monthly · Cancel anytime</Text>
+        </View>
+
         <TouchableOpacity
           style={[styles.subscribeButton, isPurchasing && styles.subscribeButtonDisabled]}
           onPress={handleSubscribe}
@@ -334,6 +340,16 @@ export default function PaywallScreen() {
             ? 'Payment will be charged to your Google Play account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Google Play → Subscriptions.'
             : 'Payment will be charged to your Apple ID account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Account Settings.'}
         </Text>
+
+        <View style={styles.legalLinksRow}>
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms').catch(() => {})}>
+            <Text style={styles.legalLink}>Terms of Use</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalLinkSep}> · </Text>
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}>
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.noThanksButton}
@@ -538,7 +554,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
+    marginBottom: 8,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  legalLink: {
+    color: COLORS.accent,
+    fontSize: 11,
+    textDecorationLine: 'underline',
+  },
+  legalLinkSep: {
+    color: COLORS.muted,
+    fontSize: 11,
+  },
+  subscriptionInfoBlock: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  subscriptionTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  subscriptionPeriod: {
+    color: COLORS.muted,
+    fontSize: 11,
+    textAlign: 'center',
   },
   noThanksButton: {
     alignItems: 'center',
