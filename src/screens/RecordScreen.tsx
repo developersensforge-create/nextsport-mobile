@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import type { CameraType } from 'expo-camera/build/Camera.types';
 import * as ImagePicker from 'expo-image-picker';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -47,6 +47,7 @@ export default function RecordScreen() {
   const initialMode = route.params?.mode ?? 'record';
 
   const [permission, requestPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
   const [mode, setMode] = useState<'record' | 'upload'>(initialMode);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const [isRecording, setIsRecording] = useState(false);
@@ -59,15 +60,19 @@ export default function RecordScreen() {
   const cameraRef = useRef<any>(null);
 
   const requestCameraPermission = useCallback(async () => {
-    const result = await requestPermission();
-    if (!result.granted) {
+    // Request both camera and microphone permissions together (required for video recording)
+    const [camResult, micResult] = await Promise.all([
+      requestPermission(),
+      requestMicPermission(),
+    ]);
+    if (!camResult.granted || !micResult.granted) {
       Alert.alert(
-        'Camera Permission Required',
-        'Please allow camera access in Settings to record your swing.',
+        'Permissions Required',
+        'Please allow camera and microphone access in Settings to record your swing.',
         [{ text: 'OK' }]
       );
     }
-  }, [requestPermission]);
+  }, [requestPermission, requestMicPermission]);
 
   async function startRecording() {
     if (!cameraRef.current) return;
@@ -243,27 +248,27 @@ export default function RecordScreen() {
   }
 
   // --- Camera mode ---
-  if (!permission) {
+  if (!permission || !micPermission) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centeredContent}>
-          <Text style={styles.permissionText}>Checking camera permissions…</Text>
+          <Text style={styles.permissionText}>Checking permissions…</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!permission.granted) {
+  if (!permission.granted || !micPermission.granted) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centeredContent}>
           <Ionicons name="camera-outline" size={60} color={COLORS.muted} />
-          <Text style={styles.permissionTitle}>Camera Access Needed</Text>
+          <Text style={styles.permissionTitle}>Camera & Microphone Access Needed</Text>
           <Text style={styles.permissionSubtitle}>
-            NextSport needs camera access to record your swing videos.
+            NextSport needs camera and microphone access to record your swing videos.
           </Text>
           <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+            <Text style={styles.permissionButtonText}>Continue</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.switchToUploadButton}
