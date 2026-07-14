@@ -212,7 +212,7 @@ export default function RecordScreen() {
               <Ionicons name="shield-checkmark-outline" size={36} color={COLORS.accent} style={{ marginBottom: 12 }} />
               <Text style={styles.consentTitle}>AI Analysis</Text>
               <Text style={styles.consentBody}>
-                NextSport uses AI to analyze your swing. Your video will be securely sent to our AI service for analysis and will be handled in accordance with our Privacy Policy.
+                NextSport uses OpenAI's GPT-4o to analyze your swing. Your video footage will be sent to OpenAI for AI-powered swing analysis. OpenAI does not use your data to train their models. Your data is handled in accordance with our Privacy Policy.
               </Text>
               <TouchableOpacity
                 onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/privacy').catch(() => {})}
