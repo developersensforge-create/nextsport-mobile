@@ -124,7 +124,7 @@ export default function ProfileScreen() {
 
   async function handleManageBilling() {
     try {
-      await WebBrowser.openBrowserAsync('https://nextsport.vercel.app/pricing');
+      await WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/pricing');
     } catch (err) {
       console.warn('[Profile] openBrowserAsync failed:', err);
     }
@@ -132,7 +132,7 @@ export default function ProfileScreen() {
 
   async function handleShareReferral() {
     if (!referral?.referral_code) return;
-    const message = `Use my referral code ${referral.referral_code} to get bonus tokens on NextSport — the AI baseball swing analyzer! 🏈\nhttps://nextsport.vercel.app`;
+    const message = `Use my referral code ${referral.referral_code} to get bonus tokens on NextSport — the AI baseball swing analyzer! 🏈\nhttps://nextsport-sensforge.vercel.app`;
     try {
       await Share.share({ message });
     } catch {
@@ -263,19 +263,19 @@ export default function ProfileScreen() {
           <SettingsRow
             icon="help-circle-outline"
             label="Help & FAQ"
-            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/faq').catch(() => {})}
+            onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/faq').catch(() => {})}
           />
           <View style={styles.rowDivider} />
           <SettingsRow
             icon="document-text-outline"
             label="Terms of Service"
-            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms').catch(() => {})}
+            onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/terms').catch(() => {})}
           />
           <View style={styles.rowDivider} />
           <SettingsRow
             icon="shield-checkmark-outline"
             label="Privacy Policy"
-            onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}
+            onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/privacy').catch(() => {})}
           />
         </View>
 

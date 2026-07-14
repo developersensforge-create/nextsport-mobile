@@ -168,7 +168,7 @@ export default function AnalysisResultScreen() {
   async function handleShare() {
     if (!analysis) return;
     const scoreText = analysis.score ? `Score: ${analysis.score}/100` : '';
-    const message = `🏈 My NextSport swing analysis is in!\n${scoreText}\n\nGet your own AI swing analysis at nextsport.vercel.app`;
+    const message = `🏈 My NextSport swing analysis is in!\n${scoreText}\n\nGet your own AI swing analysis at nextsport-sensforge.vercel.app`;
     try {
       await Share.share({ message });
     } catch {

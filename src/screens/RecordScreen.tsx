@@ -215,7 +215,7 @@ export default function RecordScreen() {
                 NextSport uses AI to analyze your swing. Your video will be securely sent to our AI service for analysis and will be handled in accordance with our Privacy Policy.
               </Text>
               <TouchableOpacity
-                onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}
+                onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/privacy').catch(() => {})}
               >
                 <Text style={styles.consentLink}>View Privacy Policy</Text>
               </TouchableOpacity>

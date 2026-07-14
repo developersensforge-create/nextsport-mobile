@@ -342,11 +342,11 @@ export default function PaywallScreen() {
         </Text>
 
         <View style={styles.legalLinksRow}>
-          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms').catch(() => {})}>
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/terms').catch(() => {})}>
             <Text style={styles.legalLink}>Terms of Use</Text>
           </TouchableOpacity>
           <Text style={styles.legalLinkSep}> · </Text>
-          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}>
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/privacy').catch(() => {})}>
             <Text style={styles.legalLink}>Privacy Policy</Text>
           </TouchableOpacity>
         </View>

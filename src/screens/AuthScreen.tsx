@@ -164,14 +164,14 @@ export default function AuthScreen() {
                 By creating an account, you agree to our{' '}
                 <Text
                   style={styles.legalLink}
-                  onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/terms').catch(() => {})}
+                  onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/terms').catch(() => {})}
                 >
                   Terms of Service
                 </Text>
                 {' '}and{' '}
                 <Text
                   style={styles.legalLink}
-                  onPress={() => WebBrowser.openBrowserAsync('https://nextsport.vercel.app/privacy').catch(() => {})}
+                  onPress={() => WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/privacy').catch(() => {})}
                 >
                   Privacy Policy
                 </Text>
