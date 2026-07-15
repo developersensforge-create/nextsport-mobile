@@ -54,7 +54,7 @@
       "expo-sharing",
       "expo-video",
       "expo-web-browser",
-      "expo-audio"
+      ["expo-audio", { "enableBackgroundPlayback": false }]
     ],
     "extra": {
       "eas": {
