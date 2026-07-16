@@ -136,19 +136,87 @@ function StrengthsSection({ strengths }: { strengths: string[] }) {
   );
 }
 
+// ─── Parse raw_analysis JSON ─────────────────────────────────────────────────
+
+/**
+ * raw_analysis (feedback字段) 是标准 JSON 字符串，结构：
+ * {
+ *   "scores": { "stance_load": 3, ... },
+ *   "areas-to-improve-fix": [{ "Title": "desc", "fix": "..." }, ...],
+ *   "training-priorities": "...",
+ *   "comments-and-annotations": [...]
+ * }
+ *
+ * improvements 字段存的是 Python str(dict)，解析不可靠。
+ * 统一改为从 feedback (raw_analysis) 里解析。
+ */
+function parseRawAnalysis(feedback: string | null): {
+  improvements: Improvement[];
+  scores: Record<string, number> | null;
+} {
+  if (!feedback) return { improvements: [], scores: null };
+  try {
+    const d = JSON.parse(feedback);
+    const improvements: Improvement[] = (d['areas-to-improve-fix'] ?? []).map((item: any) => item as Improvement);
+    const scores = d['scores'] ?? null;
+    return { improvements, scores };
+  } catch {
+    return { improvements: [], scores: null };
+  }
+}
+
 // ─── Improvements Section ─────────────────────────────────────────────────────
 
 type Improvement = { fix?: string; [key: string]: string | undefined };
 
-function ImprovementsSection({ improvements }: { improvements: Improvement[] }) {
+/**
+ * 后端存储时用了 Python str(dict)，导致单引号格式，无法直接 JSON.parse。
+ * 例: "{'Bat Drag': \"desc\", 'fix': 'do this'}"
+ * 策略：把单引号 key/value 转成双引号，再 JSON.parse。
+ */
+function parsePythonDictString(raw: string): Improvement | null {
+  try {
+    // 如果已经是对象直接返回
+    if (typeof raw === 'object' && raw !== null) return raw as Improvement;
+    if (typeof raw !== 'string') return null;
+    // 替换 Python dict 格式 → JSON 格式
+    // 1. 把 \' 占位避免影响后续替换
+    let s = raw.trim();
+    // 把外层花括号内的单引号 key 换成双引号
+    // 思路：用 JSON 宽容解析 — 先把单引号换成双引号，双引号内的单引号保护
+    s = s
+      .replace(/'/g, '"')           // 全部单引号换双引号
+      .replace(/"{2,}/g, '"')       // 连续双引号缩为一个（处理已有双引号的值）
+      .replace(/\\"/g, "'");         // 还原原来的转义双引号（变回单引号在值里）
+    return JSON.parse(s) as Improvement;
+  } catch {
+    // 解析失败：用正则直接抽取 key/value/fix
+    try {
+      const titleMatch = raw.match(/[{,]\s*['"](.+?)['"]\s*:\s*['"](.*?)['"]\s*[,}]/);
+      const fixMatch = raw.match(/['"]fix['"]\s*:\s*['"](.+?)['"]\s*[}]/s);
+      if (titleMatch) {
+        const result: Improvement = { [titleMatch[1]]: titleMatch[2] };
+        if (fixMatch) result.fix = fixMatch[1];
+        return result;
+      }
+    } catch { /* ignore */ }
+    return null;
+  }
+}
+
+function ImprovementsSection({ improvements }: { improvements: any[] }) {
   if (!improvements || improvements.length === 0) return null;
+
+  // 统一转成 Improvement 对象
+  const parsed: Improvement[] = improvements.map((item) =>
+    typeof item === 'string' ? (parsePythonDictString(item) ?? {}) : (item as Improvement)
+  );
 
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>🎯 AREAS TO IMPROVE</Text>
       <Text style={styles.sectionSubtitle}>Focus on these next to make the biggest difference.</Text>
-      {improvements.map((item, i) => {
-        // Key is the issue title, everything else is the description or fix
+      {parsed.map((item, i) => {
         const keys = Object.keys(item).filter((k) => k !== 'fix');
         const title = keys[0] ?? `Issue ${i + 1}`;
         const description = item[title] ?? '';
@@ -296,9 +364,10 @@ export default function AnalysisResultScreen() {
     );
   }
 
-  const scores = (analysis as any).scores as Record<string, number> | null;
+  // 从 feedback (raw_analysis JSON) 解析结构化数据，比 improvements 字段更可靠
+  const { improvements, scores: parsedScores } = parseRawAnalysis(analysis.feedback);
+  const scores = parsedScores ?? ((analysis as any).scores as Record<string, number> | null);
   const strengths = (analysis as any).strengths as string[] ?? [];
-  const improvements = (analysis as any).improvements as Improvement[] ?? [];
   const drills = (analysis as any).recommended_drills as string[] ?? [];
   const hasStructuredData = strengths.length > 0 || improvements.length > 0 || drills.length > 0;
 

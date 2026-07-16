@@ -33,21 +33,24 @@ function getStatusLabel(status: Analysis['status']): string {
 
 /** 从结构化字段生成可读的 coaching 预览文字，避免显示 JSON 原文 */
 function getCoachingPreview(analysis: Analysis): string | null {
-  // 优先用 improvements 第一条的 title（最重要的改进点）
-  const improvements = analysis.improvements ?? [];
-  if (improvements.length > 0) {
-    const first = improvements[0];
-    const titleKey = Object.keys(first).find((k) => k !== 'fix');
-    if (titleKey) {
-      const rest = improvements.length > 1 ? ` +${improvements.length - 1} more` : '';
-      return `Focus: ${titleKey}${rest}`;
-    }
+  // 优先从 feedback (raw_analysis JSON) 解析 improvements，格式最可靠
+  if (analysis.feedback) {
+    try {
+      const d = JSON.parse(analysis.feedback);
+      const items: any[] = d['areas-to-improve-fix'] ?? [];
+      if (items.length > 0) {
+        const first = items[0];
+        const titleKey = Object.keys(first).find((k) => k !== 'fix');
+        if (titleKey) {
+          const rest = items.length > 1 ? ` +${items.length - 1} more` : '';
+          return `Focus: ${titleKey}${rest}`;
+        }
+      }
+    } catch { /* fall through */ }
   }
-  // 次选：strengths 第一条
+  // 次选：strengths
   const strengths = analysis.strengths ?? [];
-  if (strengths.length > 0) {
-    return `✓ ${strengths[0]}`;
-  }
+  if (strengths.length > 0) return `✓ ${strengths[0]}`;
   return null;
 }
 
