@@ -133,13 +133,18 @@ export async function submitAnalysis(
   return response.data;
 }
 
-export async function pollAnalysis(id: string, maxAttempts = 30): Promise<Analysis> {
+export async function pollAnalysis(
+  id: string,
+  maxAttempts = 60,
+  onProgress?: (attempt: number) => void,
+): Promise<Analysis> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     const analysis = await getAnalysis(id);
     if (analysis.status === 'completed' || analysis.status === 'failed') {
       return analysis;
     }
+    onProgress?.(attempt + 1);
   }
   throw new Error('Analysis timed out');
 }

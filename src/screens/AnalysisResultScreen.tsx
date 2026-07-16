@@ -276,6 +276,8 @@ export default function AnalysisResultScreen() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,14 +287,24 @@ export default function AnalysisResultScreen() {
         if (!cancelled) { setError('Invalid analysis ID.'); setLoading(false); }
         return;
       }
-      if (!cancelled) { setLoading(true); setError(null); }
+      if (!cancelled) { setLoading(true); setError(null); setTimedOut(false); setAttemptCount(0); }
       try {
         const result = poll
-          ? await pollAnalysis(analysisId)
+          ? await pollAnalysis(analysisId, 60, (attempt) => {
+              if (!cancelled) setAttemptCount(attempt);
+            })
           : await getAnalysis(analysisId);
         if (!cancelled) setAnalysis(result);
       } catch (err: any) {
-        if (!cancelled) setError(err.message ?? 'Failed to load analysis.');
+        if (!cancelled) {
+          const message = err.message ?? 'Failed to load analysis.';
+          if (message === 'Analysis timed out') {
+            setTimedOut(true);
+            setLoading(false);
+          } else {
+            setError(message);
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -311,10 +323,39 @@ export default function AnalysisResultScreen() {
     navigation.navigate('Record');
   }
 
+  async function handleContinueWaiting() {
+    if (!analysisId) return;
+    setTimedOut(false);
+    setLoading(true);
+    setAttemptCount(0);
+    try {
+      const result = await pollAnalysis(analysisId, 60, (attempt) => {
+        setAttemptCount(attempt);
+      });
+      setAnalysis(result);
+    } catch (err: any) {
+      const message = err.message ?? 'Failed to load analysis.';
+      if (message === 'Analysis timed out') {
+        setTimedOut(true);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // ── Loading ──
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Swing Analysis</Text>
+          <View style={styles.shareButton} />
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.accent} />
           <Text style={styles.loadingTitle}>
@@ -322,9 +363,42 @@ export default function AnalysisResultScreen() {
           </Text>
           {poll && (
             <Text style={styles.loadingSubtitle}>
-              Our AI is reviewing your technique.{'\n'}This usually takes 20–60 seconds.
+              {attemptCount >= 30
+                ? `Still working… (${attemptCount * 2}s)\nHang tight — your video is being processed.`
+                : 'Our AI is reviewing your technique.\nThis usually takes 20–60 seconds.'}
             </Text>
           )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Timed Out ──
+  if (timedOut) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Swing Analysis</Text>
+          <View style={styles.shareButton} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="time-outline" size={56} color="#f59e0b" />
+          <Text style={styles.errorTitle}>Taking longer than usual</Text>
+          <Text style={styles.errorText}>
+            Your analysis is still processing on the server.{'\n'}You can keep waiting or check back later.
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleContinueWaiting}>
+            <Text style={styles.retryButtonText}>Continue Waiting</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: 'transparent', marginTop: 10 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={[styles.retryButtonText, { color: COLORS.muted }]}>Go Back</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
