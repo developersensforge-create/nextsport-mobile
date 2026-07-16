@@ -18,7 +18,7 @@
         "backgroundColor": "#0a0f1e"
       },
       "package": "com.nextsport.app",
-      "versionCode": 31,
+      "versionCode": 32,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -54,7 +54,12 @@
       "expo-sharing",
       "expo-video",
       "expo-web-browser",
-      ["expo-audio", { "enableBackgroundPlayback": false }]
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": false
+        }
+      ]
     ],
     "extra": {
       "eas": {
