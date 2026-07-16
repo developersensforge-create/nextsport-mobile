@@ -38,7 +38,7 @@ export default function HomeScreen() {
   async function loadAnalyses() {
     try {
       const data = await getAnalyses();
-      setAnalyses(data.slice(0, 5));
+      setAnalyses(data.filter((a) => a.status === 'completed').slice(0, 5));
     } catch {
       // silently fail on load — show empty state
     } finally {
@@ -53,7 +53,7 @@ export default function HomeScreen() {
       async function loadAsync() {
         try {
           const data = await getAnalyses();
-          if (!cancelled) setAnalyses(data.slice(0, 5));
+          if (!cancelled) setAnalyses(data.filter((a) => a.status === 'completed').slice(0, 5));
         } catch {
           // silently fail
         } finally {

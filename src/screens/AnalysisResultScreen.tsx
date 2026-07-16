@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Sharing from 'expo-sharing';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { COLORS } from '../theme';
@@ -63,6 +64,24 @@ const gaugeStyles = StyleSheet.create({
   outOf: { fontSize: 13, fontWeight: '500', marginTop: -4 },
   label: { fontSize: 16, fontWeight: '700', marginTop: 8 },
 });
+
+function SwingVideoCard({ videoUrl }: { videoUrl: string }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = false;
+  });
+  return (
+    <View style={styles.videoCard}>
+      <Text style={styles.videoCardTitle}>Your Swing</Text>
+      <VideoView
+        player={player}
+        style={styles.videoPlayer}
+        allowsFullscreen
+        allowsPictureInPicture={false}
+        contentFit="contain"
+      />
+    </View>
+  );
+}
 
 function AudioFeedbackCard({ audioUrl }: { audioUrl: string }) {
   const player = useAudioPlayer({ uri: audioUrl }, { downloadFirst: true });
@@ -253,6 +272,9 @@ export default function AnalysisResultScreen() {
         {/* Score */}
         {analysis.score !== null && <ScoreGauge score={analysis.score} />}
 
+        {/* Swing video replay */}
+        {analysis.video_url && <SwingVideoCard videoUrl={analysis.video_url} />}
+
         {/* Audio feedback */}
         {analysis.audio_url && <AudioFeedbackCard audioUrl={analysis.audio_url} />}
 
@@ -291,6 +313,15 @@ export default function AnalysisResultScreen() {
   );
 }
 
+function cleanMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')   // 去除 **bold**
+    .replace(/\*(.+?)\*/g, '$1')        // 去除 *italic*
+    .replace(/^#{1,6}\s+/gm, '')        // 去除 ## 标题前缀
+    .replace(/^[-*]\s+/gm, '• ')        // 统一列表符号为 •
+    .trim();
+}
+
 function parseFeedback(feedback: string | null): Array<{ title?: string; body: string }> {
   if (!feedback) return [];
 
@@ -301,7 +332,7 @@ function parseFeedback(feedback: string | null): Array<{ title?: string; body: s
   if (matches.length === 0) {
     // No structured headers — split by double newlines into paragraphs
     const paragraphs = feedback.split(/\n\n+/).filter((p) => p.trim().length > 0);
-    return paragraphs.map((p) => ({ body: p.trim() }));
+    return paragraphs.map((p) => ({ body: cleanMarkdown(p) }));
   }
 
   const sections: Array<{ title?: string; body: string }> = [];
@@ -314,7 +345,7 @@ function parseFeedback(feedback: string | null): Array<{ title?: string; body: s
 
     const bodyStart = matchIndex + match[0].length;
     const bodyEnd = i + 1 < matches.length ? (matches[i + 1].index ?? feedback.length) : feedback.length;
-    const body = feedback.slice(bodyStart, bodyEnd).trim();
+    const body = cleanMarkdown(feedback.slice(bodyStart, bodyEnd).trim());
 
     if (body) {
       sections.push({ title, body });
@@ -484,5 +515,23 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     fontSize: 15,
     fontWeight: '600',
+  },
+  videoCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  videoCardTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+    padding: 12,
+  },
+  videoPlayer: {
+    width: '100%',
+    height: 220,
   },
 });

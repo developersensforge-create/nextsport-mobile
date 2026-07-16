@@ -8,6 +8,8 @@ import {
   Alert,
   Share,
   RefreshControl,
+  Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -124,9 +126,28 @@ export default function ProfileScreen() {
 
   async function handleManageBilling() {
     try {
-      await WebBrowser.openBrowserAsync('https://nextsport-sensforge.vercel.app/pricing');
+      if (Platform.OS === 'ios') {
+        // iOS: 跳转 Apple 原生订阅管理页，用户可在此取消订阅、更换支付方式
+        const url = 'https://apps.apple.com/account/subscriptions';
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          await Linking.openURL(url);
+        } else {
+          await WebBrowser.openBrowserAsync(url);
+        }
+      } else {
+        // Android: 跳转 Google Play 订阅管理页
+        const url = 'https://play.google.com/store/account/subscriptions?sku=com.nextsport.app.premium.monthly&package=com.nextsport.app';
+        await WebBrowser.openBrowserAsync(url);
+      }
     } catch (err) {
       console.warn('[Profile] openBrowserAsync failed:', err);
+      Alert.alert(
+        'Cannot Open',
+        Platform.OS === 'ios'
+          ? 'Please go to Settings → Apple ID → Subscriptions to manage your subscription.'
+          : 'Please open Google Play → Subscriptions to manage your subscription.',
+      );
     }
   }
 
