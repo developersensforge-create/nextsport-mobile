@@ -31,8 +31,29 @@ function getStatusLabel(status: Analysis['status']): string {
   }
 }
 
+/** 从结构化字段生成可读的 coaching 预览文字，避免显示 JSON 原文 */
+function getCoachingPreview(analysis: Analysis): string | null {
+  // 优先用 improvements 第一条的 title（最重要的改进点）
+  const improvements = analysis.improvements ?? [];
+  if (improvements.length > 0) {
+    const first = improvements[0];
+    const titleKey = Object.keys(first).find((k) => k !== 'fix');
+    if (titleKey) {
+      const rest = improvements.length > 1 ? ` +${improvements.length - 1} more` : '';
+      return `Focus: ${titleKey}${rest}`;
+    }
+  }
+  // 次选：strengths 第一条
+  const strengths = analysis.strengths ?? [];
+  if (strengths.length > 0) {
+    return `✓ ${strengths[0]}`;
+  }
+  return null;
+}
+
 export default function AnalysisCard({ analysis, onPress }: AnalysisCardProps) {
   const scoreColor = getScoreColor(analysis.score);
+  const preview = getCoachingPreview(analysis);
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
@@ -48,9 +69,9 @@ export default function AnalysisCard({ analysis, onPress }: AnalysisCardProps) {
       <View style={styles.middle}>
         <Text style={styles.dateText}>{formatDate(analysis.created_at)}</Text>
         <Text style={styles.statusText}>{getStatusLabel(analysis.status)}</Text>
-        {analysis.feedback ? (
+        {preview ? (
           <Text style={styles.preview} numberOfLines={2}>
-            {analysis.feedback.slice(0, 80)}…
+            {preview}
           </Text>
         ) : null}
       </View>
