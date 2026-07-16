@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,15 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import * as Sharing from 'expo-sharing';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type ResultNavProp = StackNavigationProp<RootStackParamList, 'AnalysisResult'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'AnalysisResult'>;
+
+// ─── Score Gauge ──────────────────────────────────────────────────────────────
 
 function ScoreGauge({ score }: { score: number }) {
   function getColor() {
@@ -65,83 +65,142 @@ const gaugeStyles = StyleSheet.create({
   label: { fontSize: 16, fontWeight: '700', marginTop: 8 },
 });
 
+// ─── Annotated Video Card ─────────────────────────────────────────────────────
+
 function SwingVideoCard({ videoUrl }: { videoUrl: string }) {
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
   });
   return (
     <View style={styles.videoCard}>
-      <Text style={styles.videoCardTitle}>Your Swing</Text>
+      <View style={styles.videoCardHeader}>
+        <Text style={styles.videoCardTitle}>🎬 Your Annotated Swing</Text>
+        <Text style={styles.videoCardSubtitle}>Slow motion with coaching cues</Text>
+      </View>
       <VideoView
         player={player}
         style={styles.videoPlayer}
-        allowsFullscreen
-        allowsPictureInPicture={false}
         contentFit="contain"
+        nativeControls
       />
     </View>
   );
 }
 
-function AudioFeedbackCard({ audioUrl }: { audioUrl: string }) {
-  const player = useAudioPlayer({ uri: audioUrl }, { downloadFirst: true });
-  const status = useAudioPlayerStatus(player);
-  const [audioLoading, setAudioLoading] = useState(false);
+// ─── Scores Section ───────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    // BUG-10: setAudioModeAsync 是异步操作，需要 await 并处理错误
-    setAudioModeAsync({ playsInSilentMode: true }).catch((err) => {
-      console.warn('[AudioFeedback] setAudioModeAsync failed:', err);
-    });
-  }, []);
+function ScoresSection({ scores }: { scores: Record<string, number> }) {
+  const entries = Object.entries(scores);
+  if (entries.length === 0) return null;
 
-  async function toggleAudio() {
-    if (status.playing) {
-      player.pause();
-      return;
-    }
-
-    setAudioLoading(true);
-    try {
-      player.play();
-    } catch {
-      Alert.alert('Audio Error', 'Could not play audio feedback.');
-    } finally {
-      setAudioLoading(false);
-    }
+  function scoreColor(val: number) {
+    if (val >= 4) return COLORS.accent;
+    if (val >= 3) return '#f59e0b';
+    return '#ef4444';
   }
 
   return (
-    <TouchableOpacity
-      style={styles.audioCard}
-      onPress={toggleAudio}
-      activeOpacity={0.85}
-    >
-      {audioLoading ? (
-        <ActivityIndicator size="small" color={COLORS.accent} />
-      ) : (
-        <Ionicons
-          name={status.playing ? 'pause-circle' : 'play-circle'}
-          size={36}
-          color={COLORS.accent}
-        />
-      )}
-      <View style={styles.audioInfo}>
-        <Text style={styles.audioTitle}>Audio Feedback</Text>
-        <Text style={styles.audioSubtitle}>
-          {status.playing ? 'Playing…' : 'Tap to listen to your coaching feedback'}
-        </Text>
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>SWING SCORES</Text>
+      <View style={styles.scoresGrid}>
+        {entries.map(([key, val]) => {
+          const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          const color = scoreColor(val);
+          return (
+            <View key={key} style={styles.scoreItem}>
+              <Text style={[styles.scoreValue, { color }]}>{val}<Text style={styles.scoreMax}>/5</Text></Text>
+              <Text style={styles.scoreLabel}>{label}</Text>
+            </View>
+          );
+        })}
       </View>
-      <Ionicons name="volume-high" size={20} color={COLORS.muted} />
-    </TouchableOpacity>
+    </View>
   );
 }
+
+// ─── Strengths Section ────────────────────────────────────────────────────────
+
+function StrengthsSection({ strengths }: { strengths: string[] }) {
+  if (!strengths || strengths.length === 0) return null;
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>✅ STRENGTHS</Text>
+      <Text style={styles.sectionSubtitle}>What's working well in your swing.</Text>
+      {strengths.map((item, i) => (
+        <View key={i} style={styles.strengthItem}>
+          <Ionicons name="checkmark-circle" size={18} color={COLORS.accent} style={{ marginTop: 2 }} />
+          <Text style={styles.strengthText}>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Improvements Section ─────────────────────────────────────────────────────
+
+type Improvement = { fix?: string; [key: string]: string | undefined };
+
+function ImprovementsSection({ improvements }: { improvements: Improvement[] }) {
+  if (!improvements || improvements.length === 0) return null;
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>🎯 AREAS TO IMPROVE</Text>
+      <Text style={styles.sectionSubtitle}>Focus on these next to make the biggest difference.</Text>
+      {improvements.map((item, i) => {
+        // Key is the issue title, everything else is the description or fix
+        const keys = Object.keys(item).filter((k) => k !== 'fix');
+        const title = keys[0] ?? `Issue ${i + 1}`;
+        const description = item[title] ?? '';
+        const fix = item.fix ?? null;
+
+        return (
+          <View key={i} style={styles.improvementCard}>
+            <View style={styles.improvementHeader}>
+              <View style={styles.improvementBadge}>
+                <Text style={styles.improvementBadgeText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.improvementTitle}>{title}</Text>
+            </View>
+            {!!description && (
+              <Text style={styles.improvementBody}>{description}</Text>
+            )}
+            {!!fix && (
+              <View style={styles.fixBox}>
+                <Text style={styles.fixLabel}>SUGGESTED FIX</Text>
+                <Text style={styles.fixText}>{fix}</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── Recommended Drills Section ───────────────────────────────────────────────
+
+function DrillsSection({ drills }: { drills: string[] }) {
+  if (!drills || drills.length === 0) return null;
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>🏋️ RECOMMENDED DRILLS</Text>
+      {drills.map((drill, i) => (
+        <View key={i} style={styles.drillItem}>
+          <Ionicons name="fitness" size={16} color={COLORS.accent} style={{ marginTop: 2 }} />
+          <Text style={styles.drillText}>{drill}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
   const route = useRoute<ResultRouteProp>();
 
-  // BUG-03: route.params 可能为 undefined（深链接/push通知跳转）
   const params = route.params ?? {};
   const analysisId = (params as any).analysisId as string | undefined;
   const poll = (params as any).poll as boolean | undefined;
@@ -151,29 +210,19 @@ export default function AnalysisResultScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // BUG-02: 添加 cancelled flag，防止 unmount 后 setState
     let cancelled = false;
 
     async function load() {
       if (!analysisId) {
-        if (!cancelled) {
-          setError('Invalid analysis ID.');
-          setLoading(false);
-        }
+        if (!cancelled) { setError('Invalid analysis ID.'); setLoading(false); }
         return;
       }
-      if (!cancelled) {
-        setLoading(true);
-        setError(null);
-      }
+      if (!cancelled) { setLoading(true); setError(null); }
       try {
-        if (poll) {
-          const result = await pollAnalysis(analysisId);
-          if (!cancelled) setAnalysis(result);
-        } else {
-          const result = await getAnalysis(analysisId);
-          if (!cancelled) setAnalysis(result);
-        }
+        const result = poll
+          ? await pollAnalysis(analysisId)
+          : await getAnalysis(analysisId);
+        if (!cancelled) setAnalysis(result);
       } catch (err: any) {
         if (!cancelled) setError(err.message ?? 'Failed to load analysis.');
       } finally {
@@ -186,19 +235,15 @@ export default function AnalysisResultScreen() {
 
   async function handleShare() {
     if (!analysis) return;
-    const scoreText = analysis.score ? `Score: ${analysis.score}/100` : '';
-    const message = `🏈 My NextSport swing analysis is in!\n${scoreText}\n\nGet your own AI swing analysis at nextsport-sensforge.vercel.app`;
-    try {
-      await Share.share({ message });
-    } catch {
-      // user cancelled or error
-    }
+    const message = `🏈 My NextSport swing analysis is in!\n\nGet your own AI swing analysis at nextsport-sensforge.vercel.app`;
+    try { await Share.share({ message }); } catch { /* user cancelled */ }
   }
 
   function handleAnalyzeAnother() {
     navigation.navigate('Record');
   }
 
+  // ── Loading ──
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -217,6 +262,7 @@ export default function AnalysisResultScreen() {
     );
   }
 
+  // ── Error ──
   if (error || !analysis) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -232,6 +278,7 @@ export default function AnalysisResultScreen() {
     );
   }
 
+  // ── Failed ──
   if (analysis.status === 'failed') {
     return (
       <SafeAreaView style={styles.safe}>
@@ -249,11 +296,15 @@ export default function AnalysisResultScreen() {
     );
   }
 
-  // Parse feedback sections
-  const feedbackSections = parseFeedback(analysis.feedback);
+  const scores = (analysis as any).scores as Record<string, number> | null;
+  const strengths = (analysis as any).strengths as string[] ?? [];
+  const improvements = (analysis as any).improvements as Improvement[] ?? [];
+  const drills = (analysis as any).recommended_drills as string[] ?? [];
+  const hasStructuredData = strengths.length > 0 || improvements.length > 0 || drills.length > 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -269,30 +320,38 @@ export default function AnalysisResultScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Score */}
-        {analysis.score !== null && <ScoreGauge score={analysis.score} />}
-
-        {/* Swing video replay */}
+        {/* Video — annotated swing */}
         {analysis.video_url && <SwingVideoCard videoUrl={analysis.video_url} />}
 
-        {/* Audio feedback */}
-        {analysis.audio_url && <AudioFeedbackCard audioUrl={analysis.audio_url} />}
-
-        {/* Feedback sections */}
-        {feedbackSections.length > 0 ? (
-          feedbackSections.map((section, i) => (
-            <View key={i} style={styles.feedbackCard}>
-              {section.title ? (
-                <Text style={styles.feedbackTitle}>{section.title}</Text>
-              ) : null}
-              <Text style={styles.feedbackBody}>{section.body}</Text>
-            </View>
-          ))
-        ) : analysis.feedback ? (
-          <View style={styles.feedbackCard}>
-            <Text style={styles.feedbackBody}>{analysis.feedback}</Text>
+        {/* Video processing placeholder */}
+        {!analysis.video_url && analysis.status === 'completed' && (
+          <View style={styles.videoProcessingCard}>
+            <Text style={styles.videoProcessingText}>
+              🎬 Check back in 5–10 min — your annotated video is still processing.
+            </Text>
           </View>
-        ) : null}
+        )}
+
+        {/* Score gauge */}
+        {analysis.score !== null && <ScoreGauge score={analysis.score} />}
+
+        {/* Structured sections */}
+        {scores && Object.keys(scores).length > 0 && <ScoresSection scores={scores} />}
+        {hasStructuredData ? (
+          <>
+            <StrengthsSection strengths={strengths} />
+            <ImprovementsSection improvements={improvements} />
+            <DrillsSection drills={drills} />
+          </>
+        ) : (
+          // Fallback: raw text if structured data is missing
+          analysis.feedback ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>COACHING FEEDBACK</Text>
+              <Text style={styles.fallbackBody}>{analysis.feedback}</Text>
+            </View>
+          ) : null
+        )}
 
         {/* Actions */}
         <TouchableOpacity
@@ -313,53 +372,10 @@ export default function AnalysisResultScreen() {
   );
 }
 
-function cleanMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '$1')   // 去除 **bold**
-    .replace(/\*(.+?)\*/g, '$1')        // 去除 *italic*
-    .replace(/^#{1,6}\s+/gm, '')        // 去除 ## 标题前缀
-    .replace(/^[-*]\s+/gm, '• ')        // 统一列表符号为 •
-    .trim();
-}
-
-function parseFeedback(feedback: string | null): Array<{ title?: string; body: string }> {
-  if (!feedback) return [];
-
-  // Try to detect sections with headers like "**Title:**" or "## Title"
-  const headerRegex = /\*\*(.+?)\*\*[:\n]/g;
-  const matches = [...feedback.matchAll(headerRegex)];
-
-  if (matches.length === 0) {
-    // No structured headers — split by double newlines into paragraphs
-    const paragraphs = feedback.split(/\n\n+/).filter((p) => p.trim().length > 0);
-    return paragraphs.map((p) => ({ body: cleanMarkdown(p) }));
-  }
-
-  const sections: Array<{ title?: string; body: string }> = [];
-  let lastIndex = 0;
-
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    const matchIndex = match.index ?? 0;
-    const title = match[1];
-
-    const bodyStart = matchIndex + match[0].length;
-    const bodyEnd = i + 1 < matches.length ? (matches[i + 1].index ?? feedback.length) : feedback.length;
-    const body = cleanMarkdown(feedback.slice(bodyStart, bodyEnd).trim());
-
-    if (body) {
-      sections.push({ title, body });
-    }
-  }
-
-  return sections;
-}
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  safe: { flex: 1, backgroundColor: COLORS.background },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -369,64 +385,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  backButton: {
-    padding: 8,
-    width: 44,
-  },
-  topBarTitle: {
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  shareButton: {
-    padding: 8,
-    width: 44,
-    alignItems: 'flex-end',
-  },
+  backButton: { padding: 8, width: 44 },
+  topBarTitle: { color: COLORS.text, fontSize: 17, fontWeight: '700' },
+  shareButton: { padding: 8, width: 44, alignItems: 'flex-end' },
   scroll: { flex: 1 },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  loadingTitle: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 20,
-    textAlign: 'center',
-  },
-  loadingSubtitle: {
-    color: COLORS.muted,
-    fontSize: 14,
-    marginTop: 10,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  errorTitle: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 16,
-  },
-  errorText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  content: { paddingHorizontal: 20, paddingBottom: 40 },
+
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  loadingTitle: { color: COLORS.text, fontSize: 20, fontWeight: '700', marginTop: 20, textAlign: 'center' },
+  loadingSubtitle: { color: COLORS.muted, fontSize: 14, marginTop: 10, textAlign: 'center', lineHeight: 20 },
+
+  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  errorTitle: { color: COLORS.text, fontSize: 20, fontWeight: '700', marginTop: 16 },
+  errorText: { color: COLORS.muted, fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20 },
   retryButton: {
     backgroundColor: COLORS.card,
     borderRadius: 12,
@@ -436,56 +407,111 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  retryButtonText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  audioCard: {
+  retryButtonText: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+
+  // Video
+  videoCard: {
     backgroundColor: COLORS.card,
     borderRadius: 14,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.3)',
-    marginBottom: 16,
-  },
-  audioInfo: {
-    flex: 1,
-    marginHorizontal: 12,
-  },
-  audioTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  audioSubtitle: {
-    color: COLORS.muted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  feedbackCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    overflow: 'hidden',
+    marginTop: 16,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  feedbackTitle: {
-    color: COLORS.accent,
-    fontSize: 14,
-    fontWeight: '700',
+  videoCardHeader: { padding: 14, paddingBottom: 10 },
+  videoCardTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  videoCardSubtitle: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
+  videoPlayer: { width: '100%', height: 220 },
+  videoProcessingCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 16,
     marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  feedbackBody: {
-    color: COLORS.text,
-    fontSize: 15,
-    lineHeight: 23,
+  videoProcessingText: { color: COLORS.muted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
+
+  // Generic section wrapper
+  section: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
+  sectionTitle: {
+    color: COLORS.accent,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+
+  // Scores
+  scoresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 10,
+  },
+  scoreItem: { alignItems: 'center', minWidth: 70 },
+  scoreValue: { fontSize: 26, fontWeight: '800' },
+  scoreMax: { fontSize: 12, fontWeight: '400', color: COLORS.muted },
+  scoreLabel: { color: COLORS.muted, fontSize: 11, marginTop: 2, textAlign: 'center' },
+
+  // Strengths
+  strengthItem: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'flex-start' },
+  strengthText: { flex: 1, color: COLORS.text, fontSize: 14, lineHeight: 21 },
+
+  // Improvements
+  improvementCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  improvementHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  improvementBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  improvementBadgeText: { color: '#000', fontSize: 13, fontWeight: '800' },
+  improvementTitle: { flex: 1, color: COLORS.accent, fontSize: 14, fontWeight: '700' },
+  improvementBody: { color: COLORS.text, fontSize: 14, lineHeight: 21, marginBottom: 10 },
+  fixBox: {
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.2)',
+  },
+  fixLabel: { color: COLORS.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  fixText: { color: COLORS.text, fontSize: 13, lineHeight: 19 },
+
+  // Drills
+  drillItem: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'flex-start' },
+  drillText: { flex: 1, color: COLORS.text, fontSize: 14, lineHeight: 21 },
+
+  // Fallback raw text
+  fallbackBody: { color: COLORS.text, fontSize: 14, lineHeight: 22, marginTop: 8 },
+
+  // Buttons
   analyzeAnotherButton: {
     backgroundColor: COLORS.accent,
     borderRadius: 14,
@@ -493,14 +519,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 20,
     marginBottom: 12,
   },
-  analyzeAnotherText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '800',
-  },
+  analyzeAnotherText: { color: '#000', fontSize: 16, fontWeight: '800' },
   shareButtonBottom: {
     backgroundColor: 'rgba(34,197,94,0.1)',
     borderRadius: 14,
@@ -511,27 +533,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(34,197,94,0.3)',
   },
-  shareButtonBottomText: {
-    color: COLORS.accent,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  videoCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  videoCardTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '700',
-    padding: 12,
-  },
-  videoPlayer: {
-    width: '100%',
-    height: 220,
-  },
+  shareButtonBottomText: { color: COLORS.accent, fontSize: 15, fontWeight: '600' },
 });

@@ -32,6 +32,11 @@ export interface Analysis {
   audio_url: string | null;
   video_url: string | null;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  strengths: string[];
+  improvements: Array<{ fix?: string; [key: string]: string | undefined }>;
+  recommended_drills: string[];
+  scores: Record<string, number> | null;
+  swing_result: string | null;
 }
 
 export async function getProfile(): Promise<Profile> {
@@ -88,6 +93,7 @@ export async function submitAnalysis(
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl, true);
     xhr.setRequestHeader('Content-Type', videoMimeType);
+    xhr.timeout = 300000; // 5 min timeout for large video uploads
     xhr.upload.onprogress = (event) => {
       if (onProgress && event.lengthComputable) {
         // Report up to 90% during upload — last 10% is for the AI call
@@ -102,6 +108,7 @@ export async function submitAnalysis(
       }
     };
     xhr.onerror = () => reject(new Error('Upload network error'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out — please check your connection and try again'));
 
     // React Native XHR can send a local file URI as the body directly
     xhr.send({ uri: videoUri, type: videoMimeType, name: 'swing.mp4' } as any);
