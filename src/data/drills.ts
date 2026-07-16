@@ -11,11 +11,14 @@ export type DrillCategory =
 
 export type DrillTopic = 'Batting' | 'Fielding' | 'Pitching';
 
+// ReferenceVideo type kept for compatibility — data now lives in Supabase drill_videos table
+// and is fetched at runtime via src/lib/drillVideos.ts (GET /api/drills/videos)
 export interface ReferenceVideo {
   url: string;
   title: string;
   creator: string;
-  note?: string; // e.g. "Watch 0:20 – 1:41"
+  note?: string;
+  is_embeddable?: boolean;
 }
 
 export interface Drill {
@@ -31,7 +34,7 @@ export interface Drill {
   steps: string[];
   coachTip: string;
   equipment?: string;
-  referenceVideo?: ReferenceVideo;
+  // referenceVideo is intentionally omitted here — fetched from backend at runtime
 }
 
 export const DRILLS: Drill[] = [
@@ -136,13 +139,7 @@ export const DRILLS: Drill[] = [
       'Drive hips forward — let the band add challenge to your rotation.',
       'Hold finish position 2 seconds. Reset slowly.',
     ],
-    coachTip: 'Go lighter than you think — the goal is speed of rotation, not fighting the band.',
-    referenceVideo: {
-      url: 'https://youtu.be/VAk5WHHd26s?si=Xi9jpGtI6Vayo3z7&t=46',
-      title: 'Resistance Band Exercises | Hitting Done Right',
-      creator: 'Hitting Done Right - HDR',
-      note: 'Watch 0:46 – 2:20 — focuses on rotating before the swing',
-    },
+    coachTip: 'Go lighter than you think — the goal is speed of rotation, not fighting the band.'
   },
 
   // ── BATTING — Bat Path ────────────────────────────────────────────
@@ -164,13 +161,7 @@ export const DRILLS: Drill[] = [
       'At contact, the pipe should be flat through the zone — not looping up or chopping down.',
       'Increase speed as your path feels clean.',
     ],
-    coachTip: 'The pipe is lighter so bad habits show up faster. If the path feels off, slow down — don\'t let speed hide the flaw.',
-    referenceVideo: {
-      url: 'https://youtu.be/CPzMopFu95M?si=Sys4zD8W4xaxvHs9&t=20',
-      title: 'Top 5 PVC Hitting Drills - At Home Baseball Drills',
-      creator: 'Northern Baseball Training',
-      note: 'Watch 0:20 – 1:41',
-    },
+    coachTip: 'The pipe is lighter so bad habits show up faster. If the path feels off, slow down — don\'t let speed hide the flaw.'
   },
   {
     id: 'batpath-02',
@@ -190,13 +181,7 @@ export const DRILLS: Drill[] = [
       'Focus: keep that connection through the swing zone.',
       'Try 12 swings keeping the ball in place all the way through contact.',
     ],
-    coachTip: 'Casting (letting the arms fly away) is the #1 cause of weak contact. This drill exposes it immediately.',
-    referenceVideo: {
-      url: 'https://youtube.com/shorts/qYyfGdm-YNc?si=lmQYqzXMnND1LItT',
-      title: 'Great Connection Ball Hitting Drill',
-      creator: 'TheBullpenTraining',
-      note: 'Full video demonstration',
-    },
+    coachTip: 'Casting (letting the arms fly away) is the #1 cause of weak contact. This drill exposes it immediately.'
   },
   {
     id: 'batpath-03',
@@ -238,13 +223,7 @@ export const DRILLS: Drill[] = [
       'The throw should come from your LEGS and hips — not your arms.',
       'Catch the rebound or reset. Repeat.',
     ],
-    coachTip: 'If your arms are sore after this, you\'re throwing with your arms. Drive from the legs. The arms just hold the ball.',
-    referenceVideo: {
-      url: 'https://youtu.be/r9fs-HGCZTs?si=nRNK09svz3WK0Cjx&t=149',
-      title: 'Medicine Ball Drills to Increase Bat Speed and Power',
-      creator: 'AntonelliBaseball',
-      note: 'Watch 2:29 – 2:59 — the legs drive the rotation',
-    },
+    coachTip: 'If your arms are sore after this, you\'re throwing with your arms. Drive from the legs. The arms just hold the ball.'
   },
 
   // ── BATTING — Contact Point ───────────────────────────────────────
@@ -310,13 +289,7 @@ export const DRILLS: Drill[] = [
       'Focus on soft hands — let the ball come to you, don\'t stab at it.',
       'Start slow, get faster as hands get comfortable.',
     ],
-    coachTip: 'Bare hands immediately reveals if you\'re stabbing at the ball. Your hands will get stung if your technique is wrong — that\'s the feedback.',
-    referenceVideo: {
-      url: 'https://www.youtube.com/watch?v=ovOCwH4eEI8',
-      title: '3 Infield Drills You Can Do By Yourself',
-      creator: 'Antonelli Baseball',
-      note: 'Full video',
-    },
+    coachTip: 'Bare hands immediately reveals if you\'re stabbing at the ball. Your hands will get stung if your technique is wrong — that\'s the feedback.'
   },
   {
     id: 'field-02',
@@ -336,13 +309,7 @@ export const DRILLS: Drill[] = [
       'Focus on the timing: read the hop early, feet set before the ball arrives.',
       'Repeat 20 times, increasing throw force gradually.',
     ],
-    coachTip: 'The worst fielders react late and reach. The best ones read the hop before it happens and have feet already moving.',
-    referenceVideo: {
-      url: 'https://www.youtube.com/watch?v=sGkiOMijWg4',
-      title: 'Infield Fielding Drills - Short Hop',
-      creator: 'Baseball Tutorials',
-      note: 'Full video — short hop footwork and positioning',
-    },
+    coachTip: 'The worst fielders react late and reach. The best ones read the hop before it happens and have feet already moving.'
   },
   {
     id: 'field-03',
@@ -362,13 +329,7 @@ export const DRILLS: Drill[] = [
       'Immediately get into throw position after fielding.',
       'Repeat 15 times. Then switch to forehand side.',
     ],
-    coachTip: 'The backhand is all about the crossover step. If your first step is wrong, the play is over before it starts.',
-    referenceVideo: {
-      url: 'https://www.youtube.com/watch?v=0Z6d8iIQFz8',
-      title: 'BACKHAND DRILLS for Infielders',
-      creator: 'Baseball Excellence',
-      note: 'Full video — crossover step and backhand mechanics',
-    },
+    coachTip: 'The backhand is all about the crossover step. If your first step is wrong, the play is over before it starts.'
   },
   {
     id: 'field-04',
@@ -388,13 +349,7 @@ export const DRILLS: Drill[] = [
       'Stay low through the entire movement.',
       'Immediately reset to throwing position.',
     ],
-    coachTip: 'On the forehand, you\'re almost always fielding on the run. Train your body to field and redirect in one smooth motion.',
-    referenceVideo: {
-      url: 'https://www.youtube.com/watch?v=yM3VNnfLLlc',
-      title: 'How to Field a Forehand Ground Ball',
-      creator: 'Next Level Baseball',
-      note: 'Full video — forehand technique and footwork',
-    },
+    coachTip: 'On the forehand, you\'re almost always fielding on the run. Train your body to field and redirect in one smooth motion.'
   },
 
   // ── PITCHING — Mechanics ──────────────────────────────────────────
@@ -416,13 +371,7 @@ export const DRILLS: Drill[] = [
       'The towel should "slap" out in front of your body — not on the side.',
       'If the slap is to the side, you\'re releasing early. Focus on staying tall and driving toward the plate.',
     ],
-    coachTip: 'The towel slap point is your release point. Most youth pitchers release way too early and to the side — this drill makes that impossible to hide.',
-    referenceVideo: {
-      url: 'https://youtu.be/ImeXGqKYP7Y?si=3XNK9Iv-VCo1EPkn&t=202',
-      title: '9 Best Baseball Pitching Drills for Kids',
-      creator: 'yougotmojo',
-      note: 'Watch 3:22 – 4:30 — Towel Slap drill segment',
-    },
+    coachTip: 'The towel slap point is your release point. Most youth pitchers release way too early and to the side — this drill makes that impossible to hide.'
   },
   {
     id: 'pitch-02',
@@ -442,13 +391,7 @@ export const DRILLS: Drill[] = [
       'Feel the separation: hips open while your upper body stays back briefly.',
       'Finish with your back foot coming off the ground completely.',
     ],
-    coachTip: 'Velocity starts in your legs. If your back foot stays on the ground during delivery, you\'re leaving speed on the table.',
-    referenceVideo: {
-      url: 'https://youtube.com/shorts/HS2VA04f3vo?si=lvxVYQTo_YBWRtd',
-      title: 'Try This 1 Pitching Drill For Better Back Leg Drive',
-      creator: 'ARMPitchingDevelopment',
-      note: 'Full video',
-    },
+    coachTip: 'Velocity starts in your legs. If your back foot stays on the ground during delivery, you\'re leaving speed on the table.'
   },
 
   // ── PITCHING — Power ─────────────────────────────────────────────
@@ -470,13 +413,7 @@ export const DRILLS: Drill[] = [
       'Focus on the chain: back leg → hip → torso → arm.',
       'This is NOT about arm strength. Every rep should feel leg-powered.',
     ],
-    coachTip: 'Most youth pitchers throw with their arm and forget their legs exist. If this drill makes your legs tired, you\'re doing it right.',
-    referenceVideo: {
-      url: 'https://youtu.be/nstQNE_GUXA?si=z0xd_p_t_nMepSwC',
-      title: 'Large Med Ball Drill: Improve Pitching Mechanics & Velocity',
-      creator: 'Paradigm Pitching',
-      note: 'Full video',
-    },
+    coachTip: 'Most youth pitchers throw with their arm and forget their legs exist. If this drill makes your legs tired, you\'re doing it right.'
   },
   {
     id: 'pitch-04',
@@ -496,13 +433,7 @@ export const DRILLS: Drill[] = [
       'YTLA Raise: Y, T, L, A positions — hold each 2 seconds.',
       '2-Way Shoulder IR/ER: internal and external rotation, 10 each.',
     ],
-    coachTip: 'Do this BEFORE every throwing session. Pitchers who skip their band work are the ones who get hurt in April.',
-    referenceVideo: {
-      url: 'https://youtube.com/shorts/mEkXvUV5Crw?si=dMpE9ws8w4WBOglW',
-      title: 'Our Top J-Bands Pre-Throwing Movements',
-      creator: 'treadathletics',
-      note: 'Full video — shows all 10 movements',
-    },
+    coachTip: 'Do this BEFORE every throwing session. Pitchers who skip their band work are the ones who get hurt in April.'
   },
 ];
 

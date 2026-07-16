@@ -10,6 +10,8 @@ interface YouTubePlayerProps {
   startTime?: number;
   /** Original full URL — used for fallback external link */
   originalUrl?: string;
+  /** Force external link mode (skip embed attempt) — use for Shorts or known non-embeddable videos */
+  forceExternalLink?: boolean;
 }
 
 /**
@@ -25,8 +27,11 @@ interface YouTubePlayerProps {
  * - Some videos (especially Shorts) forbid embedding via iframe
  * - YouTube IFrame API fires onError(152) / onError(150) / onError(101) in these cases
  * - We relay that via postMessage → WebView onMessage → show thumbnail + external link
+ *
+ * forceExternalLink:
+ * - Set true for Shorts (is_embeddable=false in drill_videos table) to skip WebView entirely
  */
-export default function YouTubePlayer({ videoId, startTime = 0, originalUrl }: YouTubePlayerProps) {
+export default function YouTubePlayer({ videoId, startTime = 0, originalUrl, forceExternalLink = false }: YouTubePlayerProps) {
   const [embedFailed, setEmbedFailed] = useState(false);
 
   const thumbnailUri = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
@@ -102,7 +107,8 @@ export default function YouTubePlayer({ videoId, startTime = 0, originalUrl }: Y
     } catch (_) {}
   }, []);
 
-  if (embedFailed) {
+  // Show external link button for Shorts (forceExternalLink) or when embed fails
+  if (forceExternalLink || embedFailed) {
     return (
       <View style={styles.container}>
         <Image source={{ uri: thumbnailUri }} style={styles.thumbnail} resizeMode="cover" />

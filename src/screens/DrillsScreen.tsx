@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   DrillLevel,
   DrillTopic,
 } from '../data/drills';
+import { fetchDrillVideos, DrillVideo } from '../lib/drillVideos';
 
 function extractYouTubeId(url: string): string | null {
   const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/);
@@ -39,14 +40,19 @@ export default function DrillsScreen() {
   const [selectedTopic, setSelectedTopic] = useState<DrillTopic>('Batting');
   const [selectedLevel, setSelectedLevel] = useState<DrillLevel | 'All'>('All');
   const [selectedDrill, setSelectedDrill] = useState<Drill | null>(null);
+  const [videoMap, setVideoMap] = useState<Map<string, DrillVideo>>(new Map());
+  const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
+
+  // Fetch video metadata from backend on mount (graceful degradation on failure)
+  useEffect(() => {
+    fetchDrillVideos().then(setVideoMap).catch(() => {});
+  }, []);
 
   const filtered = DRILLS.filter((d) => {
     const topicOk = d.topic === selectedTopic;
     const lvlOk = selectedLevel === 'All' || d.level === selectedLevel;
     return topicOk && lvlOk;
   });
-
-  const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -125,21 +131,21 @@ export default function DrillsScreen() {
             <Text style={styles.emptyText}>No drills match your filters</Text>
           </View>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item }) => {
+          const video = videoMap.get(item.id);
+          const thumbUri = video ? getYouTubeThumbnail(video.youtube_url) : null;
+          return (
           <TouchableOpacity
             style={styles.card}
             onPress={() => setSelectedDrill(item)}
             activeOpacity={0.82}
           >
-            {item.referenceVideo && getYouTubeThumbnail(item.referenceVideo.url) ? (
+            {thumbUri ? (
               <Image
-                source={{ uri: getYouTubeThumbnail(item.referenceVideo.url)! }}
+                source={{ uri: thumbUri }}
                 style={styles.cardThumb}
                 resizeMode="cover"
-                onError={() => {
-                  // BUG-11: 图片加载失败时静默处理，fallback 由条件渲染保证
-                  console.warn('[DrillsScreen] thumbnail load failed');
-                }}
+                onError={() => console.warn('[DrillsScreen] thumbnail load failed')}
               />
             ) : (
               <View style={[styles.iconBox, { backgroundColor: TOPIC_COLORS[item.topic] + '18' }]}>
@@ -165,7 +171,7 @@ export default function DrillsScreen() {
                     <Text style={styles.cardMetaText} numberOfLines={1}>{item.equipment}</Text>
                   </>
                 )}
-                {item.referenceVideo && (
+                {video && (
                   <>
                     <Text style={styles.cardMetaDot}>·</Text>
                     <Ionicons name="play-circle-outline" size={13} color={COLORS.accent} />
@@ -176,7 +182,8 @@ export default function DrillsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
           </TouchableOpacity>
-        )}
+          );
+        }}
       />
 
       {/* ── Drill Detail Modal ── */}
@@ -244,15 +251,22 @@ export default function DrillsScreen() {
                   )}
                 </View>
 
-                {/* Reference Video — inline YouTube player */}
-                {selectedDrill.referenceVideo && (() => {
-                  const videoId = extractYouTubeId(selectedDrill.referenceVideo!.url);
-                  const tMatch = selectedDrill.referenceVideo!.url.match(/[?&]t=(\d+)/);
+                {/* Reference Video — inline YouTube player or external link for Shorts */}
+                {(() => {
+                  const video = videoMap.get(selectedDrill.id);
+                  if (!video) return null;
+                  const videoId = extractYouTubeId(video.youtube_url);
+                  const tMatch = video.youtube_url.match(/[?&]t=(\d+)/);
                   const startTime = tMatch ? parseInt(tMatch[1]) : 0;
                   return (
                     <View style={styles.videoCardDirect}>
                       {videoId ? (
-                        <YouTubePlayer videoId={videoId} startTime={startTime} originalUrl={selectedDrill.referenceVideo!.url} />
+                        <YouTubePlayer
+                          videoId={videoId}
+                          startTime={startTime}
+                          originalUrl={video.youtube_url}
+                          forceExternalLink={!video.is_embeddable}
+                        />
                       ) : (
                         <View style={styles.videoThumbPlaceholder}>
                           <Ionicons name="logo-youtube" size={36} color="#ff0000" />
@@ -260,14 +274,16 @@ export default function DrillsScreen() {
                       )}
                       <View style={styles.videoDirectInfo}>
                         <Text style={styles.videoTitle} numberOfLines={2}>
-                          {selectedDrill.referenceVideo!.title}
+                          {video.title}
                         </Text>
-                        <Text style={styles.videoCreator}>{selectedDrill.referenceVideo!.creator}</Text>
-                        {selectedDrill.referenceVideo!.note && (
-                          <Text style={styles.videoNote}>⏱ {selectedDrill.referenceVideo!.note}</Text>
+                        <Text style={styles.videoCreator}>{video.creator}</Text>
+                        {video.note && (
+                          <Text style={styles.videoNote}>⏱ {video.note}</Text>
                         )}
                         <Text style={styles.videoCitation} numberOfLines={3}>
-                          {selectedDrill.referenceVideo!.creator}. {new Date().getFullYear()}. <Text style={{ fontStyle: 'italic' }}>{selectedDrill.referenceVideo!.title}</Text> [Video]. YouTube. {selectedDrill.referenceVideo!.url.split('?')[0]}
+                          {video.creator}. {new Date().getFullYear()}.{' '}
+                          <Text style={{ fontStyle: 'italic' }}>{video.title}</Text>{' '}
+                          [Video]. YouTube. {video.youtube_url.split('?')[0]}
                         </Text>
                       </View>
                     </View>
