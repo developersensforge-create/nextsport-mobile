@@ -122,6 +122,7 @@ export default function DrillsScreen() {
       {/* Drill list */}
       <FlatList
         data={filtered}
+        key={`${selectedTopic}-${selectedLevel}`}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
