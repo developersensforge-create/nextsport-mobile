@@ -131,7 +131,6 @@ export default function DrillsScreen() {
         data={filtered}
         key={`${selectedTopic}-${selectedLevel}`}
         keyExtractor={(item) => item.id}
-        style={{ flex: 1 }}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -400,7 +399,7 @@ const styles = StyleSheet.create({
   levelChipTextActive: { color: COLORS.text, fontWeight: '700' },
 
   // Drill list
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10, flexGrow: 1 },
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,7 +445,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   levelBadgeText: { fontSize: 10, fontWeight: '700' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
+  emptyState: { alignItems: 'center', marginTop: 60, gap: 12 },
   emptyText: { color: COLORS.muted, fontSize: 15 },
 
   // Modal
