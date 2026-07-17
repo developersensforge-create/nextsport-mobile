@@ -32,11 +32,16 @@ export async function fetchDrillVideos(): Promise<DrillVideoMap> {
     const res = await fetch(API_URL, { headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as { videos: DrillVideo[] };
-    _cache = new Map(data.videos.map((v) => [v.drill_id, v]));
+    const map = new Map(data.videos.map((v) => [v.drill_id, v]));
+    // Only cache if we got a non-empty response — failed/empty responses should
+    // not be cached so the next render will retry the fetch.
+    if (map.size > 0) {
+      _cache = map;
+    }
+    return map;
   } catch (err) {
     console.warn('[drillVideos] Failed to fetch drill videos, degrading gracefully:', err);
-    _cache = new Map();
+    // Do NOT set _cache — leave it null so the next call retries the fetch.
+    return new Map();
   }
-
-  return _cache;
 }

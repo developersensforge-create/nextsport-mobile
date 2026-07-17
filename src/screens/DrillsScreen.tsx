@@ -9,6 +9,7 @@ import {
   Modal,
   Pressable,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,10 +43,16 @@ export default function DrillsScreen() {
   const [selectedDrill, setSelectedDrill] = useState<Drill | null>(null);
   const [videoMap, setVideoMap] = useState<Map<string, DrillVideo>>(new Map());
   const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
+  const [videosLoaded, setVideosLoaded] = useState(false);
 
   // Fetch video metadata from backend on mount (graceful degradation on failure)
   useEffect(() => {
-    fetchDrillVideos().then(setVideoMap).catch(() => {});
+    fetchDrillVideos().then((map) => {
+      setVideoMap(map);
+      setVideosLoaded(true);
+    }).catch(() => {
+      setVideosLoaded(true);
+    });
   }, []);
 
   const filtered = DRILLS.filter((d) => {
@@ -124,6 +131,7 @@ export default function DrillsScreen() {
         data={filtered}
         key={`${selectedTopic}-${selectedLevel}`}
         keyExtractor={(item) => item.id}
+        style={{ flex: 1 }}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -255,6 +263,13 @@ export default function DrillsScreen() {
                 {/* Reference Video — inline YouTube player or external link for Shorts */}
                 {(() => {
                   const video = videoMap.get(selectedDrill.id);
+                  if (!videosLoaded) {
+                    return (
+                      <View style={styles.videoLoadingBox}>
+                        <ActivityIndicator size="small" color={COLORS.accent} />
+                      </View>
+                    );
+                  }
                   if (!video) return null;
                   const videoId = extractYouTubeId(video.youtube_url);
                   const tMatch = video.youtube_url.match(/[?&]t=(\d+)/);
@@ -385,7 +400,7 @@ const styles = StyleSheet.create({
   levelChipTextActive: { color: COLORS.text, fontWeight: '700' },
 
   // Drill list
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10 },
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10, flexGrow: 1 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -397,11 +412,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 64,
+    height: 48,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   cardThumb: {
     width: 64,
@@ -430,7 +446,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   levelBadgeText: { fontSize: 10, fontWeight: '700' },
-  emptyState: { alignItems: 'center', marginTop: 60, gap: 12 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
   emptyText: { color: COLORS.muted, fontSize: 15 },
 
   // Modal
@@ -492,6 +508,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  videoLoadingBox: {
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   videoDirectInfo: {
     padding: 12,
