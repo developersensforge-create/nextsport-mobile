@@ -3,6 +3,16 @@ import { StyleSheet, View, TouchableOpacity, Image, Text, Linking } from 'react-
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 
+/** Detect device language for localized YouTube button text */
+function getWatchOnYouTubeText(): string {
+  try {
+    const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
+    return locale.startsWith('zh') ? '在 YouTube 观看' : 'Watch on YouTube';
+  } catch {
+    return 'Watch on YouTube';
+  }
+}
+
 interface YouTubePlayerProps {
   /** 11-char YouTube video ID (not the full URL) */
   videoId: string;
