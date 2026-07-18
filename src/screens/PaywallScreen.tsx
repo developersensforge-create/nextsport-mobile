@@ -20,15 +20,11 @@ import {
   ensureIapConnection,
   fetchIapProducts,
   purchaseProduct,
-  completePurchase,
-  onPurchaseUpdated,
-  onPurchaseError,
   IAP_SKUS,
   isIapConnected,
-  verifyGooglePurchase,
-  verifyApplePurchase,
 } from '../lib/iap';
-import type { Product, Purchase } from 'expo-iap';
+import { useIapContext } from '../contexts/IapContext';
+import type { Product } from 'expo-iap';
 import { supabase } from '../lib/supabase';
 
 type PaywallNavProp = StackNavigationProp<RootStackParamList, 'Paywall'>;
@@ -86,6 +82,9 @@ export default function PaywallScreen() {
   const navigation = useNavigation<PaywallNavProp>();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
+  // Connect to global IAP context — listener lives at App root level
+  const { onPurchaseSuccess, onPurchaseFailure } = useIapContext();
+
   // ── Load IAP products on mount ──────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -117,96 +116,39 @@ export default function PaywallScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Listen for purchase updates/errors ──────────────────────────────
+  // ── Wire success/failure callbacks into global IAP context ──────────
+  // Global IapProvider fires these when purchaseUpdatedListener resolves.
   useEffect(() => {
-    const purchaseSub = onPurchaseUpdated(async (purchase: Purchase) => {
-      console.log('[Paywall] Purchase updated:', (purchase as any).transactionId, 'platform:', Platform.OS);
-      let purchaseSuccess = false;
-      try {
-        if (Platform.OS === 'android') {
-          // Android: verify with Google Play backend, then finish transaction
-          const purchaseToken = (purchase as any).purchaseToken ?? (purchase as any).dataAndroid;
-          const productId = (purchase as any).productId ?? IAP_SKUS.PREMIUM_MONTHLY;
-
-          if (!purchaseToken) {
-            throw new Error('Missing purchaseToken in Android purchase');
-          }
-
-          // Get auth headers
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) throw new Error('Not authenticated');
-          const authHeaders = { Authorization: `Bearer ${session.access_token}` };
-
-          // Verify with backend (activates premium + grants tokens)
-          await verifyGooglePurchase(purchaseToken, productId, authHeaders);
-
-          // Acknowledge the purchase (required by Google within 3 days)
-          await completePurchase(purchase, false);
-
-        } else {
-          // iOS (StoreKit 2): purchaseToken is the JWS signed transaction string.
-          // transactionReceipt no longer exists in expo-iap StoreKit 2 mode.
-          const jwsToken =
-            (purchase as any).purchaseToken ??
-            (purchase as any).jws ??
-            '';
-          const transactionId =
-            (purchase as any).transactionId ??
-            (purchase as any).id ??
-            '';
-
-          if (!jwsToken && !transactionId) {
-            throw new Error('Missing purchaseToken/transactionId in iOS purchase');
-          }
-
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) throw new Error('Not authenticated');
-          const authHeaders = { Authorization: `Bearer ${session.access_token}` };
-
-          // Verify with Apple via backend (JWS decode + App Store Server API)
-          await verifyApplePurchase(jwsToken, transactionId, authHeaders);
-
-          // Finish the StoreKit transaction
-          await completePurchase(purchase, false);
-        }
-        purchaseSuccess = true;
-      } catch (err) {
-        console.error('[Paywall] purchase processing failed:', err);
-        // Always reset state so button becomes tappable again
-        setState((prev) => {
-          if (prev.status === 'purchasing') {
-            return { status: 'loaded', product: prev.product };
-          }
-          return prev;
-        });
-        Alert.alert('Purchase Error', 'Your payment was received but activation failed. Please restart the app or contact support.');
-      }
-      if (purchaseSuccess) {
-        Alert.alert('Purchase Complete', 'Your premium subscription is now active!', [
-          { text: 'OK', onPress: () => { try { navigation.goBack(); } catch (_) {} } },
-        ]);
-      }
-    });
-
-    const errorSub = onPurchaseError((error) => {
-      console.error('[Paywall] Purchase error:', error.code, error.message);
+    onPurchaseSuccess.current = () => {
       setState((prev) => {
         if (prev.status === 'purchasing') {
           return { status: 'loaded', product: prev.product };
         }
         return prev;
       });
-      // E_USER_CANCELLED is not an error to show
-      if (error.code !== 'E_USER_CANCELLED') {
-        Alert.alert('Purchase Failed', error.message || 'Something went wrong. Please try again.');
+      Alert.alert('Purchase Complete', 'Your premium subscription is now active!', [
+        { text: 'OK', onPress: () => { try { navigation.goBack(); } catch (_) {} } },
+      ]);
+    };
+
+    onPurchaseFailure.current = (errMsg: string) => {
+      setState((prev) => {
+        if (prev.status === 'purchasing') {
+          return { status: 'loaded', product: prev.product };
+        }
+        return prev;
+      });
+      if (errMsg !== 'cancelled') {
+        Alert.alert('Purchase Failed', errMsg || 'Something went wrong. Please try again.');
       }
-    });
+    };
 
     return () => {
-      purchaseSub.remove();
-      errorSub.remove();
+      // Clear refs when screen unmounts so stale callbacks aren't called
+      onPurchaseSuccess.current = null;
+      onPurchaseFailure.current = null;
     };
-  }, [navigation]);
+  }, [navigation, onPurchaseSuccess, onPurchaseFailure]);
 
   // ── Handle subscribe ────────────────────────────────────────────────
   const handleSubscribe = useCallback(async () => {
@@ -215,7 +157,7 @@ export default function PaywallScreen() {
     const product = state.product;
     setState({ status: 'purchasing', product });
 
-    // Re-check connection before purchase
+    // Ensure connection (global IapProvider inits on mount, but double-check)
     if (!isIapConnected()) {
       const ok = await ensureIapConnection();
       if (!ok) {
@@ -224,25 +166,24 @@ export default function PaywallScreen() {
       }
     }
 
-    // Safety net: if purchaseUpdatedListener never fires within 60s, reset state.
-    // This prevents the button from being permanently stuck on "Processing...".
+    // Safety net: if purchaseUpdatedListener never fires within 90s, reset state.
     const purchaseTimeoutId = setTimeout(() => {
-      console.warn('[Paywall] Purchase listener timeout — resetting state');
+      console.warn('[Paywall] Purchase safety timeout — resetting button');
       setState((prev) => {
         if (prev.status === 'purchasing') {
           return { status: 'loaded', product: prev.product };
         }
         return prev;
       });
-    }, 60000);
+    }, 90000);
 
     try {
       await purchaseProduct(product.productId);
-      // Result handled by purchaseUpdatedListener (both iOS and Android)
-      // Listener clears the timeout when it fires
+      // Result arrives via global IapProvider → onPurchaseSuccess/Failure refs
+      clearTimeout(purchaseTimeoutId);
     } catch (error: any) {
       clearTimeout(purchaseTimeoutId);
-      console.error('[Paywall] purchaseProduct failed:', error?.code, error?.message, error);
+      console.error('[Paywall] purchaseProduct failed:', error?.code, error?.message);
       setState({ status: 'loaded', product });
       const msg = error?.message || error?.debugMessage || 'Could not start purchase. Please try again.';
       Alert.alert('Error', msg);
