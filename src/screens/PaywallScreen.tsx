@@ -144,26 +144,27 @@ export default function PaywallScreen() {
           await completePurchase(purchase, false);
 
         } else {
-          // iOS: verify receipt with backend first, then finish transaction
-          const transactionReceipt =
-            (purchase as any).transactionReceipt ??
-            (purchase as any).originalTransactionIdentifierIOS ??
+          // iOS (StoreKit 2): purchaseToken is the JWS signed transaction string.
+          // transactionReceipt no longer exists in expo-iap StoreKit 2 mode.
+          const jwsToken =
+            (purchase as any).purchaseToken ??
+            (purchase as any).jws ??
             '';
           const transactionId =
             (purchase as any).transactionId ??
-            (purchase as any).transactionIdentifier ??
+            (purchase as any).id ??
             '';
 
-          if (!transactionReceipt) {
-            throw new Error('Missing transactionReceipt in iOS purchase');
+          if (!jwsToken && !transactionId) {
+            throw new Error('Missing purchaseToken/transactionId in iOS purchase');
           }
 
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.access_token) throw new Error('Not authenticated');
           const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
-          // Verify with Apple via backend (backend handles sandbox/prod 21007 fallback)
-          await verifyApplePurchase(transactionReceipt, transactionId, authHeaders);
+          // Verify with Apple via backend (JWS decode + App Store Server API)
+          await verifyApplePurchase(jwsToken, transactionId, authHeaders);
 
           // Finish the StoreKit transaction
           await completePurchase(purchase, false);
@@ -223,10 +224,24 @@ export default function PaywallScreen() {
       }
     }
 
+    // Safety net: if purchaseUpdatedListener never fires within 60s, reset state.
+    // This prevents the button from being permanently stuck on "Processing...".
+    const purchaseTimeoutId = setTimeout(() => {
+      console.warn('[Paywall] Purchase listener timeout — resetting state');
+      setState((prev) => {
+        if (prev.status === 'purchasing') {
+          return { status: 'loaded', product: prev.product };
+        }
+        return prev;
+      });
+    }, 60000);
+
     try {
       await purchaseProduct(product.productId);
       // Result handled by purchaseUpdatedListener (both iOS and Android)
+      // Listener clears the timeout when it fires
     } catch (error: any) {
+      clearTimeout(purchaseTimeoutId);
       console.error('[Paywall] purchaseProduct failed:', error?.code, error?.message, error);
       setState({ status: 'loaded', product });
       const msg = error?.message || error?.debugMessage || 'Could not start purchase. Please try again.';

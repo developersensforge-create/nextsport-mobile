@@ -121,18 +121,24 @@ export async function purchaseProduct(sku: string): Promise<Purchase | Purchase[
  * Backend auto-detects sandbox vs production (21007 fallback).
  */
 export async function verifyApplePurchase(
-  transactionReceipt: string,
+  jwsToken: string,       // StoreKit 2: purchaseToken (JWS). Legacy: receipt_data (base64).
   transactionId: string,
   authHeaders: Record<string, string>
 ): Promise<{ success: boolean; plan: string; expires_date: string | null }> {
   const BASE_URL = 'https://nextsport-sensforge.vercel.app';
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+  const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
+  // Detect StoreKit 2 JWS (contains dots like a JWT) vs legacy base64 receipt
+  const isJws = jwsToken.includes('.');
   try {
     const res = await fetch(`${BASE_URL}/api/apple/verify-receipt`, {
       method: 'POST',
       headers: { ...authHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ receipt_data: transactionReceipt, transaction_id: transactionId }),
+      body: JSON.stringify(
+        isJws
+          ? { jws_token: jwsToken, transaction_id: transactionId }
+          : { receipt_data: jwsToken, transaction_id: transactionId }
+      ),
       signal: controller.signal,
     });
     if (!res.ok) {
