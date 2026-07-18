@@ -127,21 +127,27 @@ export default function ProfileScreen() {
   async function handleManageBilling() {
     try {
       if (Platform.OS === 'ios') {
-        // iOS: 跳转 Apple 原生订阅管理页，用户可在此取消订阅、更换支付方式
-        const url = 'https://apps.apple.com/account/subscriptions';
-        const supported = await Linking.canOpenURL(url);
+        // iOS: itms-apps:// 直接唤起 App Store 订阅管理页，比 https:// 更可靠
+        const primary = 'itms-apps://apps.apple.com/account/subscriptions';
+        const supported = await Linking.canOpenURL(primary);
         if (supported) {
-          await Linking.openURL(url);
+          await Linking.openURL(primary);
         } else {
-          await WebBrowser.openBrowserAsync(url);
+          await Linking.openURL('https://apps.apple.com/account/subscriptions');
         }
       } else {
-        // Android: 跳转 Google Play 订阅管理页
-        const url = 'https://play.google.com/store/account/subscriptions?sku=com.nextsport.app.premium.monthly&package=com.nextsport.app';
-        await WebBrowser.openBrowserAsync(url);
+        // Android: market:// Intent 直接跳原生 Google Play App，避免 WebView 无 session 问题
+        const marketUrl = 'market://subscriptions?sku=com.nextsport.app.premium.monthly&package=com.nextsport.app';
+        const supported = await Linking.canOpenURL(marketUrl);
+        if (supported) {
+          await Linking.openURL(marketUrl);
+        } else {
+          // fallback: 外部浏览器（非内嵌 WebBrowser）
+          await Linking.openURL('https://play.google.com/store/account/subscriptions');
+        }
       }
     } catch (err) {
-      console.warn('[Profile] openBrowserAsync failed:', err);
+      console.warn('[Profile] handleManageBilling failed:', err);
       Alert.alert(
         'Cannot Open',
         Platform.OS === 'ios'
