@@ -26,6 +26,7 @@ import {
   IAP_SKUS,
   isIapConnected,
   verifyGooglePurchase,
+  verifyApplePurchase,
 } from '../lib/iap';
 import type { Product, Purchase } from 'expo-iap';
 import { supabase } from '../lib/supabase';
@@ -143,7 +144,28 @@ export default function PaywallScreen() {
           await completePurchase(purchase, false);
 
         } else {
-          // iOS: finish transaction (Apple receipt verified separately via webhook)
+          // iOS: verify receipt with backend first, then finish transaction
+          const transactionReceipt =
+            (purchase as any).transactionReceipt ??
+            (purchase as any).originalTransactionIdentifierIOS ??
+            '';
+          const transactionId =
+            (purchase as any).transactionId ??
+            (purchase as any).transactionIdentifier ??
+            '';
+
+          if (!transactionReceipt) {
+            throw new Error('Missing transactionReceipt in iOS purchase');
+          }
+
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) throw new Error('Not authenticated');
+          const authHeaders = { Authorization: `Bearer ${session.access_token}` };
+
+          // Verify with Apple via backend (backend handles sandbox/prod 21007 fallback)
+          await verifyApplePurchase(transactionReceipt, transactionId, authHeaders);
+
+          // Finish the StoreKit transaction
           await completePurchase(purchase, false);
         }
         purchaseSuccess = true;

@@ -113,6 +113,31 @@ export async function purchaseProduct(sku: string): Promise<Purchase | Purchase[
   }
 }
 
+// ─── iOS Purchase Verification ───────────────────────────────────────────────
+
+/**
+ * Verify an Apple IAP receipt with our backend and activate premium.
+ * Must be called after a successful purchase on iOS.
+ * Backend auto-detects sandbox vs production (21007 fallback).
+ */
+export async function verifyApplePurchase(
+  transactionReceipt: string,
+  transactionId: string,
+  authHeaders: Record<string, string>
+): Promise<{ success: boolean; plan: string; expires_date: string | null }> {
+  const BASE_URL = 'https://nextsport-sensforge.vercel.app';
+  const res = await fetch(`${BASE_URL}/api/apple/verify-receipt`, {
+    method: 'POST',
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ receipt_data: transactionReceipt, transaction_id: transactionId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || `Apple verification failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 // ─── Android Purchase Verification ──────────────────────────────────────────
 
 /**
