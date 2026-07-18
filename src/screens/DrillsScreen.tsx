@@ -375,6 +375,7 @@ const styles = StyleSheet.create({
 
   // Level filter
   filterScroll: {
+    flexGrow: 0,
     flexShrink: 0,
   },
   filterRow: {
