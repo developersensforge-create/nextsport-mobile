@@ -171,6 +171,13 @@ export default function PaywallScreen() {
         purchaseSuccess = true;
       } catch (err) {
         console.error('[Paywall] purchase processing failed:', err);
+        // Always reset state so button becomes tappable again
+        setState((prev) => {
+          if (prev.status === 'purchasing') {
+            return { status: 'loaded', product: prev.product };
+          }
+          return prev;
+        });
         Alert.alert('Purchase Error', 'Your payment was received but activation failed. Please restart the app or contact support.');
       }
       if (purchaseSuccess) {

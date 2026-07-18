@@ -126,16 +126,28 @@ export async function verifyApplePurchase(
   authHeaders: Record<string, string>
 ): Promise<{ success: boolean; plan: string; expires_date: string | null }> {
   const BASE_URL = 'https://nextsport-sensforge.vercel.app';
-  const res = await fetch(`${BASE_URL}/api/apple/verify-receipt`, {
-    method: 'POST',
-    headers: { ...authHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ receipt_data: transactionReceipt, transaction_id: transactionId }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error || `Apple verification failed: HTTP ${res.status}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+  try {
+    const res = await fetch(`${BASE_URL}/api/apple/verify-receipt`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receipt_data: transactionReceipt, transaction_id: transactionId }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).error || `Apple verification failed: HTTP ${res.status}`);
+    }
+    return res.json();
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Apple receipt verification timed out. Please check your connection and try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-  return res.json();
 }
 
 // ─── Android Purchase Verification ──────────────────────────────────────────
