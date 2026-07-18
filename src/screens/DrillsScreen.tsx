@@ -378,12 +378,12 @@ const styles = StyleSheet.create({
   filterScroll: {
     flexGrow: 0,
     flexShrink: 0,
-    marginTop: 4,
+    marginTop: 0,
   },
   filterRow: {
     paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
     gap: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
 
   // Drill list
   flatList: { flex: 1 },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10 },
+  list: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 32, gap: 10 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

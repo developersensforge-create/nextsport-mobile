@@ -53,8 +53,9 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      refetch();
       loadReferral();
-    }, [])
+    }, [refetch])
   );
 
   async function onRefresh() {
