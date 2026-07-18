@@ -4,6 +4,13 @@
  * Must wrap the entire app so that the purchaseUpdatedListener is registered
  * before any purchase can complete. Registering inside PaywallScreen alone
  * can miss StoreKit callbacks that arrive before the screen mounts.
+ *
+ * Two purchase scenarios handled:
+ *  1. App startup — StoreKit replays unfinished pending transactions.
+ *     These are processed silently: verify if possible, always finishTransaction.
+ *     NO alert on failure (the user didn't just tap "Buy").
+ *  2. User-initiated purchase — flagged via `markUserInitiatedPurchase()`.
+ *     On failure, show an alert so the user knows to retry / contact support.
  */
 import React, {
   createContext,
@@ -32,12 +39,15 @@ type IapContextValue = {
   onPurchaseSuccess: React.MutableRefObject<(() => void) | null>;
   /** Call this when a purchase fails (set by PaywallScreen) */
   onPurchaseFailure: React.MutableRefObject<((err: string) => void) | null>;
+  /** PaywallScreen calls this before requestPurchase() to flag user intent */
+  markUserInitiatedPurchase: () => void;
 };
 
 const IapContext = createContext<IapContextValue>({
   connected: false,
   onPurchaseSuccess: { current: null },
   onPurchaseFailure: { current: null },
+  markUserInitiatedPurchase: () => {},
 });
 
 export function useIapContext() {
@@ -51,6 +61,13 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
   const onPurchaseSuccess = useRef<(() => void) | null>(null);
   const onPurchaseFailure = useRef<((err: string) => void) | null>(null);
 
+  // True only when the user just tapped "Subscribe" — cleared after each purchase event
+  const userInitiated = useRef(false);
+
+  function markUserInitiatedPurchase() {
+    userInitiated.current = true;
+  }
+
   useEffect(() => {
     // Connect once on app start
     ensureIapConnection().then((ok) => {
@@ -62,31 +79,40 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
 
     // ── Global purchase listener ────────────────────────────────────────
     const purchaseSub = onPurchaseUpdated(async (purchase: Purchase) => {
+      const txId = (purchase as any).transactionId ?? (purchase as any).id ?? 'unknown';
+      const wasUserInitiated = userInitiated.current;
+      // Reset immediately so the next event starts clean
+      userInitiated.current = false;
+
       console.log(
-        '[IAP] purchaseUpdated:',
-        (purchase as any).transactionId ?? (purchase as any).id,
+        '[IAP] purchaseUpdated:', txId,
         'platform:', Platform.OS,
+        'userInitiated:', wasUserInitiated,
       );
 
+      // Wait for session (AsyncStorage is async — may not be ready at app start)
+      let session = null;
+      for (let i = 0; i < 10; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.access_token) {
+          session = data.session;
+          break;
+        }
+        console.log(`[IAP] Session not ready, retrying (${i + 1}/10)...`);
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
+      if (!session?.access_token) {
+        console.warn('[IAP] No session — finishing transaction silently');
+        // Must still finish the transaction so StoreKit doesn't replay forever
+        await completePurchase(purchase, false).catch(() => {});
+        if (wasUserInitiated) {
+          onPurchaseFailure.current?.('Not authenticated');
+        }
+        return;
+      }
+
       try {
-        // Wait for session to be available — on App startup, AsyncStorage restore
-        // is async and the session may not be ready yet when StoreKit replays
-        // a pending purchase. Retry up to 5s.
-        let session = null;
-        for (let i = 0; i < 10; i++) {
-          const { data } = await supabase.auth.getSession();
-          if (data.session?.access_token) {
-            session = data.session;
-            break;
-          }
-          console.log(`[IAP] Session not ready, retrying (${i + 1}/10)...`);
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        if (!session?.access_token) {
-          // Still no session — user not logged in, skip silently
-          console.warn('[IAP] No session after retries — skipping purchase verification');
-          return;
-        }
         const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
         if (Platform.OS === 'android') {
@@ -97,7 +123,7 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
           await verifyGooglePurchase(purchaseToken, productId, authHeaders);
           await completePurchase(purchase, false);
         } else {
-          // StoreKit 2: purchaseToken is JWS
+          // StoreKit 2: purchaseToken is JWS signed transaction
           const jwsToken =
             (purchase as any).purchaseToken ??
             (purchase as any).jws ??
@@ -116,17 +142,29 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
         console.log('[IAP] Purchase verified and completed ✓');
         onPurchaseSuccess.current?.();
       } catch (err: any) {
-        console.error('[IAP] Purchase processing failed:', err?.message ?? err);
-        onPurchaseFailure.current?.(err?.message ?? 'Activation failed');
-        Alert.alert(
-          'Purchase Error',
-          'Payment received but activation failed. Please restart the app or contact support.',
-        );
+        const msg = err?.message ?? 'Activation failed';
+        console.error('[IAP] Purchase processing failed:', msg);
+
+        // Always finish the transaction to prevent infinite StoreKit replay
+        await completePurchase(purchase, false).catch(() => {});
+
+        if (wasUserInitiated) {
+          // User just tapped Buy — show alert
+          onPurchaseFailure.current?.(msg);
+          Alert.alert(
+            'Purchase Error',
+            'Payment received but activation failed. Please restart the app or contact support.',
+          );
+        } else {
+          // Background/startup replay — silent, no alert
+          console.warn('[IAP] Background purchase replay failed silently:', msg);
+        }
       }
     });
 
     const errorSub = onPurchaseError((error) => {
       console.error('[IAP] Purchase error:', error.code, error.message);
+      userInitiated.current = false;
       if (error.code !== 'E_USER_CANCELLED' && (error as any).code !== 'user-cancelled') {
         onPurchaseFailure.current?.(error.message ?? 'Purchase failed');
       } else {
@@ -142,7 +180,7 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <IapContext.Provider value={{ connected, onPurchaseSuccess, onPurchaseFailure }}>
+    <IapContext.Provider value={{ connected, onPurchaseSuccess, onPurchaseFailure, markUserInitiatedPurchase }}>
       {children}
     </IapContext.Provider>
   );

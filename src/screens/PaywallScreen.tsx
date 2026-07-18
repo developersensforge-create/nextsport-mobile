@@ -24,6 +24,7 @@ import {
   isIapConnected,
 } from '../lib/iap';
 import { useIapContext } from '../contexts/IapContext';
+
 import type { Product } from 'expo-iap';
 import { supabase } from '../lib/supabase';
 
@@ -83,7 +84,7 @@ export default function PaywallScreen() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
   // Connect to global IAP context — listener lives at App root level
-  const { onPurchaseSuccess, onPurchaseFailure } = useIapContext();
+  const { onPurchaseSuccess, onPurchaseFailure, markUserInitiatedPurchase } = useIapContext();
 
   // ── Load IAP products on mount ──────────────────────────────────────
   useEffect(() => {
@@ -178,6 +179,7 @@ export default function PaywallScreen() {
     }, 90000);
 
     try {
+      markUserInitiatedPurchase();
       await purchaseProduct(product.productId);
       // Result arrives via global IapProvider → onPurchaseSuccess/Failure refs
       clearTimeout(purchaseTimeoutId);
