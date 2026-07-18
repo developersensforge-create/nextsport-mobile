@@ -100,6 +100,7 @@ export default function DrillsScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterRow}
+        style={styles.filterScroll}
       >
         {(['All', 'Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
           <TouchableOpacity
@@ -373,11 +374,16 @@ const styles = StyleSheet.create({
   topicTabText: { color: COLORS.muted, fontSize: 13, fontWeight: '600' },
 
   // Level filter
+  filterScroll: {
+    flexShrink: 0,
+  },
   filterRow: {
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingTop: 6,
+    paddingBottom: 8,
     gap: 8,
     flexDirection: 'row',
+    alignItems: 'center',
   },
   levelChip: {
     flexDirection: 'row',
