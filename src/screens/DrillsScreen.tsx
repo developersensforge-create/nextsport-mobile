@@ -132,6 +132,7 @@ export default function DrillsScreen() {
         data={filtered}
         key={`${selectedTopic}-${selectedLevel}`}
         keyExtractor={(item) => item.id}
+        style={styles.flatList}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -377,6 +378,7 @@ const styles = StyleSheet.create({
   filterScroll: {
     flexGrow: 0,
     flexShrink: 0,
+    marginTop: 4,
   },
   filterRow: {
     paddingHorizontal: 16,
@@ -406,6 +408,7 @@ const styles = StyleSheet.create({
   levelChipTextActive: { color: COLORS.text, fontWeight: '700' },
 
   // Drill list
+  flatList: { flex: 1 },
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, gap: 10 },
   card: {
     flexDirection: 'row',
