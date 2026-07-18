@@ -69,8 +69,24 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
       );
 
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error('Not authenticated');
+        // Wait for session to be available — on App startup, AsyncStorage restore
+        // is async and the session may not be ready yet when StoreKit replays
+        // a pending purchase. Retry up to 5s.
+        let session = null;
+        for (let i = 0; i < 10; i++) {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.access_token) {
+            session = data.session;
+            break;
+          }
+          console.log(`[IAP] Session not ready, retrying (${i + 1}/10)...`);
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (!session?.access_token) {
+          // Still no session — user not logged in, skip silently
+          console.warn('[IAP] No session after retries — skipping purchase verification');
+          return;
+        }
         const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
         if (Platform.OS === 'android') {
