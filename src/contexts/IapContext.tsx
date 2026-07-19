@@ -29,6 +29,7 @@ import {
   completePurchase,
   verifyApplePurchase,
   verifyGooglePurchase,
+  fetchTransactionJwsIOS,
   IAP_SKUS,
 } from '../lib/iap';
 
@@ -124,7 +125,8 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
           await completePurchase(purchase, false);
         } else {
           // StoreKit 2: purchaseToken is JWS signed transaction
-          const jwsToken =
+          // expo-iap may return purchaseToken as null — fallback to getTransactionJwsIOS
+          let jwsToken =
             (purchase as any).purchaseToken ??
             (purchase as any).jws ??
             '';
@@ -132,9 +134,19 @@ export function IapProvider({ children }: { children: React.ReactNode }) {
             (purchase as any).transactionId ??
             (purchase as any).id ??
             '';
+
+          // If no JWS from the purchase object, actively fetch it via StoreKit 2
+          if (!jwsToken || !jwsToken.includes('.')) {
+            const productId = (purchase as any).productId ?? IAP_SKUS.PREMIUM_MONTHLY;
+            console.log('[IAP] purchaseToken missing or not JWS, fetching via getTransactionJwsIOS for', productId);
+            jwsToken = await fetchTransactionJwsIOS(productId);
+          }
+
           if (!jwsToken && !transactionId) {
             throw new Error('Missing purchaseToken/transactionId (iOS)');
           }
+
+          console.log('[IAP] iOS verify — jwsToken present:', !!jwsToken, 'isJWS:', jwsToken.includes('.'));
           await verifyApplePurchase(jwsToken, transactionId, authHeaders);
           await completePurchase(purchase, false);
         }

@@ -7,6 +7,7 @@ import {
   purchaseUpdatedListener,
   purchaseErrorListener,
   finishTransaction,
+  getTransactionJwsIOS,
   type Purchase,
   type Product,
 } from 'expo-iap';
@@ -110,6 +111,22 @@ export async function purchaseProduct(sku: string): Promise<Purchase | Purchase[
   } catch (error: any) {
     // Re-throw with normalized shape so callers can reliably catch
     throw error instanceof Error ? error : new Error(error?.message ?? 'Purchase request failed');
+  }
+}
+
+// ─── iOS JWS Token Retrieval ─────────────────────────────────────────────
+
+/**
+ * Get the JWS (JSON Web Signature) token for a given SKU from StoreKit 2.
+ * Use this as a fallback when purchaseToken is not present in the Purchase object.
+ */
+export async function fetchTransactionJwsIOS(sku: string): Promise<string> {
+  try {
+    const jws = await getTransactionJwsIOS(sku);
+    return jws ?? '';
+  } catch (error) {
+    console.error('[IAP] getTransactionJwsIOS failed:', error);
+    return '';
   }
 }
 
