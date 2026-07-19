@@ -378,11 +378,11 @@ const styles = StyleSheet.create({
   filterScroll: {
     flexGrow: 0,
     flexShrink: 0,
-    marginTop: 0,
+    marginTop: 4,
   },
   filterRow: {
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 4,
     paddingBottom: 6,
     gap: 8,
     flexDirection: 'row',
