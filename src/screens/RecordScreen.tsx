@@ -26,7 +26,15 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 type RecordNavProp = StackNavigationProp<RootStackParamList, 'Record'>;
 type RecordRouteProp = RouteProp<RootStackParamList, 'Record'>;
 
-const TOKEN_COST = 10;
+// Token cost follows PRD tiered pricing: ≤30s → 10 tokens, 31–60s → 20 tokens
+function calcTokenCost(durationSec: number): number {
+  return durationSec <= 30 ? 10 : 20;
+}
+
+function formatDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+}
 
 function VideoPreview({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (player) => {
@@ -134,7 +142,19 @@ export default function RecordScreen() {
       return;
     }
 
-    await doAnalyze();
+    // Pre-analysis confirmation: show video duration + token cost
+    const cost = calcTokenCost(videoDuration);
+    const durStr = formatDuration(videoDuration);
+    await new Promise<void>((resolve, reject) => {
+      Alert.alert(
+        'Ready to Analyze?',
+        `Video: ${durStr}\nCost: ${cost} tokens`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => reject() },
+          { text: 'Analyze', style: 'default', onPress: () => resolve() },
+        ]
+      );
+    }).then(() => doAnalyze()).catch(() => {});
   }
 
   async function handleConsentAgree() {
@@ -196,8 +216,14 @@ export default function RecordScreen() {
           message={
             uploadPhase === 'processing'
               ? 'Processing your swing…\n\nOur AI is analyzing your video.\nThis takes 20–40 seconds.'
-              : `Uploading video… ${Math.round(uploadProgress * 100)}%\n\nPlease keep the app open.`
+              : `Uploading video… ${Math.round(uploadProgress * 100)}%\n\nUpload continues in the background.`
           }
+          progress={uploadProgress}
+          onExploreOthers={() => {
+            // Dismiss the overlay — upload/processing continues in background
+            // Navigation back to the tab bar lets user browse while waiting
+            navigation.goBack();
+          }}
         />
 
         {/* AI Data Consent Modal */}
@@ -243,7 +269,9 @@ export default function RecordScreen() {
         <View style={styles.previewFooter}>
           <View style={styles.tokenRow}>
             <Ionicons name="flash" size={16} color={COLORS.accent} />
-            <Text style={styles.tokenText}>This analysis costs {TOKEN_COST} tokens</Text>
+            <Text style={styles.tokenText}>
+              {formatDuration(videoDuration)} video · {calcTokenCost(videoDuration)} tokens
+            </Text>
           </View>
           <TouchableOpacity
             style={[styles.analyzeButton, uploading && styles.buttonDisabled]}
@@ -287,7 +315,11 @@ export default function RecordScreen() {
 
           <View style={styles.tokenRow}>
             <Ionicons name="flash" size={16} color={COLORS.accent} />
-            <Text style={styles.tokenText}>This analysis costs {TOKEN_COST} tokens</Text>
+            <Text style={styles.tokenText}>
+              {videoUri
+                ? `${formatDuration(videoDuration)} video · ${calcTokenCost(videoDuration)} tokens`
+                : '10 tokens (≤30s) · 20 tokens (31–60s)'}
+            </Text>
           </View>
 
           <View style={styles.tipsCard}>
@@ -396,7 +428,7 @@ export default function RecordScreen() {
         {!isRecording && (
           <View style={styles.hintContainer}>
             <Text style={styles.hintText}>Tap the button to start recording</Text>
-            <Text style={styles.hintSubText}>Max 30 seconds · {TOKEN_COST} tokens</Text>
+            <Text style={styles.hintSubText}>Max 60 seconds · 10–20 tokens</Text>
           </View>
         )}
       </CameraView>
