@@ -54,12 +54,12 @@ export function useAuth() {
     []
   );
 
-  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+  const signUpWithEmail = useCallback(async (email: string, password: string, referralCode?: string) => {
     // Use our backend API to create user with auto email confirmation (no verification email needed)
     const response = await fetch('https://nextsport-sensforge.vercel.app/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, ...(referralCode ? { referralCode } : {}) }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Sign up failed');

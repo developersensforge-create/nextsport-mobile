@@ -26,6 +26,7 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
 
   async function handleSubmit() {
     if (!email.trim() || !password.trim()) {
@@ -45,7 +46,7 @@ export default function AuthScreen() {
       if (mode === 'login') {
         await signInWithEmail(email.trim(), password);
       } else {
-        await signUpWithEmail(email.trim(), password);
+        await signUpWithEmail(email.trim(), password, referralCode.trim() || undefined);
       }
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'Authentication failed. Please try again.');
@@ -133,6 +134,22 @@ export default function AuthScreen() {
                   placeholderTextColor={COLORS.muted}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                />
+              </View>
+            )}
+
+            {/* Referral Code (signup only, optional) */}
+            {mode === 'signup' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Invite Code <Text style={{ color: COLORS.muted, fontWeight: 'normal' }}>(optional)</Text></Text>
+                <TextInput
+                  style={styles.input}
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  placeholder="Enter invite code"
+                  placeholderTextColor={COLORS.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
                 />
               </View>
             )}
