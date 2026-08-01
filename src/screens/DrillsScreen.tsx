@@ -10,6 +10,7 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,16 +45,27 @@ export default function DrillsScreen() {
   const [videoMap, setVideoMap] = useState<Map<string, DrillVideo>>(new Map());
   const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
   const [videosLoaded, setVideosLoaded] = useState(false);
+  const [videosError, setVideosError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch video metadata from backend on mount (graceful degradation on failure)
-  useEffect(() => {
-    fetchDrillVideos().then((map) => {
+  const loadVideos = async () => {
+    try {
+      setVideosError(false);
+      const map = await fetchDrillVideos();
       setVideoMap(map);
+      if (map.size === 0) {
+        setVideosError(true);
+      }
+    } catch {
+      setVideosError(true);
+    } finally {
       setVideosLoaded(true);
-    }).catch(() => {
-      setVideosLoaded(true);
-    });
-  }, []);
+      setRefreshing(false);
+    }
+  };
+
+  // Fetch video metadata from backend on mount
+  useEffect(() => { loadVideos(); }, []);
 
   const filtered = DRILLS.filter((d) => {
     const topicOk = d.topic === selectedTopic;
@@ -135,6 +147,30 @@ export default function DrillsScreen() {
         style={styles.flatList}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadVideos();
+            }}
+            tintColor={COLORS.accent}
+            colors={[COLORS.accent]}
+          />
+        }
+        ListHeaderComponent={
+          videosError ? (
+            <TouchableOpacity
+              style={styles.errorBanner}
+              onPress={loadVideos}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="cloud-offline-outline" size={16} color="#f59e0b" />
+              <Text style={styles.errorBannerText}>Couldn't load videos</Text>
+              <Text style={styles.errorBannerAction}>Tap to retry</Text>
+            </TouchableOpacity>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="baseball-outline" size={48} color={COLORS.muted} />
@@ -457,6 +493,21 @@ const styles = StyleSheet.create({
   levelBadgeText: { fontSize: 10, fontWeight: '700' },
   emptyState: { alignItems: 'center', marginTop: 60, gap: 12 },
   emptyText: { color: COLORS.muted, fontSize: 15 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.3)',
+    marginHorizontal: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  errorBannerText: { color: '#f59e0b', fontSize: 13, fontWeight: '600' },
+  errorBannerAction: { color: COLORS.accent, fontSize: 13, fontWeight: '700' },
 
   // Modal
   modal: { flex: 1, backgroundColor: COLORS.background },
