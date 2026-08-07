@@ -1,14 +1,15 @@
 import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Modal } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { COLORS } from '../theme';
 
 interface LoadingOverlayProps {
   visible: boolean;
   message?: string;
   progress?: number; // 0–1
+  onExploreOthers?: () => void;
 }
 
-export default function LoadingOverlay({ visible, message, progress }: LoadingOverlayProps) {
+export default function LoadingOverlay({ visible, message, progress, onExploreOthers }: LoadingOverlayProps) {
   return (
     <Modal transparent visible={visible} animationType="fade">
       <View style={styles.backdrop}>
@@ -23,6 +24,11 @@ export default function LoadingOverlay({ visible, message, progress }: LoadingOv
             </View>
           ) : null}
           <Text style={styles.doNotClose}>Keep the app open</Text>
+          {onExploreOthers ? (
+            <TouchableOpacity style={styles.exploreButton} onPress={onExploreOthers}>
+              <Text style={styles.exploreButtonText}>Explore other features</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -71,5 +77,18 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     fontSize: 12,
     marginTop: 12,
+  },
+  exploreButton: {
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+  },
+  exploreButtonText: {
+    color: COLORS.accent,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
