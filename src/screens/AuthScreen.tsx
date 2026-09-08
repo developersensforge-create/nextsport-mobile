@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../hooks/useAuth';
 import { COLORS } from '../theme';
+import { mp } from '../lib/mixpanel';
 
 type Mode = 'login' | 'signup';
 
@@ -44,9 +45,12 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (mode === 'login') {
+        mp.loginCompleted('email', email.trim());
         await signInWithEmail(email.trim(), password);
       } else {
+        mp.signupStarted('email');
         await signUpWithEmail(email.trim(), password, referralCode.trim() || undefined);
+        mp.signupCompleted('email', email.trim()); // userId not available here; email used as proxy
       }
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'Authentication failed. Please try again.');

@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { mp } from '../lib/mixpanel';
 import {
   ensureIapConnection,
   fetchIapProducts,
@@ -88,6 +89,7 @@ export default function PaywallScreen() {
 
   // ── Load IAP products on mount ──────────────────────────────────────
   useEffect(() => {
+    mp.paywallViewed();
     let cancelled = false;
 
     async function load() {
@@ -121,6 +123,7 @@ export default function PaywallScreen() {
   // Global IapProvider fires these when purchaseUpdatedListener resolves.
   useEffect(() => {
     onPurchaseSuccess.current = () => {
+      mp.subscriptionConfirmed('premium_monthly', 'apple');
       setState((prev) => {
         if (prev.status === 'purchasing') {
           return { status: 'loaded', product: prev.product };
@@ -179,8 +182,9 @@ export default function PaywallScreen() {
     }, 90000);
 
     try {
-      markUserInitiatedPurchase();
-      await purchaseProduct(product.productId);
+    markUserInitiatedPurchase();
+    mp.subscriptionStarted('premium_monthly');
+    await purchaseProduct(product.productId);
       // Result arrives via global IapProvider → onPurchaseSuccess/Failure refs
       clearTimeout(purchaseTimeoutId);
     } catch (error: any) {
