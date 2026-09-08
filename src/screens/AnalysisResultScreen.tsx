@@ -17,6 +17,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { mp } from '../lib/mixpanel';
 
 type ResultNavProp = StackNavigationProp<RootStackParamList, 'AnalysisResult'>;
 type ResultRouteProp = RouteProp<RootStackParamList, 'AnalysisResult'>;
@@ -316,7 +317,10 @@ export default function AnalysisResultScreen() {
   async function handleShare() {
     if (!analysis) return;
     const message = `🏈 My NextSport swing analysis is in!\n\nGet your own AI swing analysis at nextsport-sensforge.vercel.app`;
-    try { await Share.share({ message }); } catch { /* user cancelled */ }
+    try {
+      mp.track("analysis_shared", { analysis_id: analysis.id });
+      await Share.share({ message });
+    } catch { /* user cancelled */ }
   }
 
   function handleAnalyzeAnother() {

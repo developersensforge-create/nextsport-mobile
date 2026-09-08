@@ -24,6 +24,7 @@ import { getReferral } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
+import { mp } from '../lib/mixpanel';
 
 type ProfileNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Profile'>,
@@ -162,6 +163,7 @@ export default function ProfileScreen() {
     if (!referral?.referral_code) return;
     const message = `Use my referral code ${referral.referral_code} to get bonus tokens on NextSport — the AI baseball swing analyzer! 🏈\nhttps://nextsport-sensforge.vercel.app`;
     try {
+      mp.track("referral_shared", { referral_code: referral.referral_code });
       await Share.share({ message });
     } catch {
       // user cancelled
