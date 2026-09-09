@@ -22,6 +22,7 @@ import { submitAnalysis } from '../lib/api';
 import LoadingOverlay from '../components/LoadingOverlay';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { mp } from '../lib/mixpanel';
 
 type RecordNavProp = StackNavigationProp<RootStackParamList, 'Record'>;
 type RecordRouteProp = RouteProp<RootStackParamList, 'Record'>;
@@ -92,6 +93,7 @@ export default function RecordScreen() {
   async function startRecording() {
     if (!cameraRef.current) return;
     setIsRecording(true);
+    mp.recordingStarted();
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       // BUG-09: 录制被系统中断时 video 可能为 null（电话来电、权限撤销等）
@@ -102,6 +104,8 @@ export default function RecordScreen() {
       setVideoUri(video.uri);
       // CameraView doesn't reliably return duration — default to 15s for recording
       setVideoDuration(15);
+      mp.recordingStopped(15);
+      mp.videoSelected('camera', 15);
     } catch (err: any) {
       Alert.alert('Recording Error', err.message ?? 'Failed to record video.');
     } finally {
@@ -127,7 +131,9 @@ export default function RecordScreen() {
       setVideoUri(asset.uri);
       setVideoMime(asset.mimeType ?? 'video/mp4');
       // asset.duration is in milliseconds; convert to seconds (default 15 if unavailable)
-      setVideoDuration(asset.duration ? Math.round(asset.duration / 1000) : 15);
+      const durSec = asset.duration ? Math.round(asset.duration / 1000) : 15;
+      setVideoDuration(durSec);
+      mp.videoSelected('library', durSec);
     }
   }
 
@@ -154,7 +160,10 @@ export default function RecordScreen() {
           { text: 'Analyze', style: 'default', onPress: () => resolve() },
         ]
       );
-    }).then(() => doAnalyze()).catch(() => {});
+    }).then(() => {
+      mp.analysisSubmitted(videoDuration, cost);
+      return doAnalyze();
+    }).catch(() => {});
   }
 
   async function handleConsentAgree() {
@@ -192,6 +201,7 @@ export default function RecordScreen() {
       setUploadPhase('idle');
       setUploading(false);
       const message = err?.response?.data?.error ?? err.message ?? 'Failed to submit video. Please try again.';
+      mp.analysisFailed('upload_failed', message);
       Alert.alert('Upload Failed', message, [{ text: 'Try Again' }]);
     } finally {
       // Only reset uploading if we haven't already (i.e. didn't navigate away)

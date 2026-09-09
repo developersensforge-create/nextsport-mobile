@@ -295,14 +295,19 @@ export default function AnalysisResultScreen() {
               if (!cancelled) setAttemptCount(attempt);
             })
           : await getAnalysis(analysisId);
-        if (!cancelled) setAnalysis(result);
+        if (!cancelled) {
+          setAnalysis(result);
+          mp.analysisViewed(analysisId);
+        }
       } catch (err: any) {
         if (!cancelled) {
           const message = err.message ?? 'Failed to load analysis.';
           if (message === 'Analysis timed out') {
+            mp.analysisFailed('timeout');
             setTimedOut(true);
             setLoading(false);
           } else {
+            mp.analysisFailed('server_error', message);
             setError(message);
           }
         }
@@ -318,7 +323,7 @@ export default function AnalysisResultScreen() {
     if (!analysis) return;
     const message = `🏈 My NextSport swing analysis is in!\n\nGet your own AI swing analysis at nextsport-sensforge.vercel.app`;
     try {
-      mp.track("analysis_shared", { analysis_id: analysis.id });
+      mp.analysisShared(analysis.id);
       await Share.share({ message });
     } catch { /* user cancelled */ }
   }

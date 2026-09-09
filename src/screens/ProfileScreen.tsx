@@ -163,7 +163,7 @@ export default function ProfileScreen() {
     if (!referral?.referral_code) return;
     const message = `Use my referral code ${referral.referral_code} to get bonus tokens on NextSport — the AI baseball swing analyzer! 🏈\nhttps://nextsport-sensforge.vercel.app`;
     try {
-      mp.track("referral_shared", { referral_code: referral.referral_code });
+      mp.referralShared(referral.referral_code);
       await Share.share({ message });
     } catch {
       // user cancelled

@@ -86,4 +86,32 @@ export const mp = {
 
   videoUploaded: () =>
     track("video_uploaded"),
+
+  // ── Recording flow ────────────────────────────────────────────────────
+  recordingStarted: () =>
+    track("recording_started"),
+
+  recordingStopped: (durationS: number) =>
+    track("recording_stopped", { duration_s: durationS }),
+
+  videoSelected: (source: "camera" | "library", durationS: number) =>
+    track("video_selected", { source, duration_s: durationS }),
+
+  analysisSubmitted: (durationS: number, tokenCost: number) =>
+    track("analysis_submitted", { duration_s: durationS, token_cost: tokenCost }),
+
+  analysisViewed: (analysisId: string) =>
+    track("analysis_viewed", { analysis_id: analysisId }),
+
+  analysisFailed: (reason: "insufficient_tokens" | "server_error" | "upload_failed" | "timeout", detail?: string) =>
+    track("analysis_failed", { reason, ...(detail ? { detail } : {}) }),
+
+  tokenDepleted: () =>
+    track("token_depleted"),
+
+  analysisShared: (analysisId: string) =>
+    track("analysis_shared", { analysis_id: analysisId }),
+
+  referralShared: (referralCode: string) =>
+    track("referral_shared", { referral_code: referralCode }),
 };

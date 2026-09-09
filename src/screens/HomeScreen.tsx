@@ -21,6 +21,7 @@ import AnalysisCard from '../components/AnalysisCard';
 import TokenBadge from '../components/TokenBadge';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
+import { mp } from '../lib/mixpanel';
 
 type HomeNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
@@ -73,9 +74,9 @@ export default function HomeScreen() {
   }
 
   function handleRecord() {
-    // BUG-14: profile 为 null（加载中）时不应允许进入，避免 token 检查被绕过
     if (!profile) return;
     if (profile.tokens_remaining <= 0) {
+      mp.tokenDepleted();
       navigation.navigate('Paywall');
       return;
     }
@@ -83,9 +84,9 @@ export default function HomeScreen() {
   }
 
   function handleUpload() {
-    // BUG-14: 同上
     if (!profile) return;
     if (profile.tokens_remaining <= 0) {
+      mp.tokenDepleted();
       navigation.navigate('Paywall');
       return;
     }
