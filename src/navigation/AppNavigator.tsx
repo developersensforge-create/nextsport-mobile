@@ -8,6 +8,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../hooks/useAuth';
+import { useSharedIsCoach } from '../hooks/useSharedIsCoach';
 import AuthScreen from '../screens/AuthScreen';
 import HomeScreen from '../screens/HomeScreen';
 import RecordScreen from '../screens/RecordScreen';
@@ -15,12 +16,17 @@ import AnalysisResultScreen from '../screens/AnalysisResultScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import DrillsScreen from '../screens/DrillsScreen';
 import PaywallScreen from '../screens/PaywallScreen';
+import AssignmentsScreen from '../screens/AssignmentsScreen';
+import InviteAcceptScreen from '../screens/InviteAcceptScreen';
+import AthletesScreen from '../screens/AthletesScreen';
+import AthleteDetailScreen from '../screens/AthleteDetailScreen';
 import { ensureIapConnection } from '../lib/iap';
 import { COLORS } from '../theme';
 
 export type MainTabParamList = {
   Home: undefined;
   Drills: undefined;
+  Athletes?: undefined;
   Profile: undefined;
 };
 
@@ -29,6 +35,9 @@ export type RootStackParamList = {
   Record: { mode?: 'record' | 'upload' } | undefined;
   AnalysisResult: { analysisId: string; poll?: boolean };
   Paywall: undefined;
+  Assignments: undefined;
+  InviteAccept: { code: string };
+  AthleteDetail: { playerId: string; playerName: string };
 };
 
 export type AuthStackParamList = {
@@ -39,9 +48,21 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
 
+const linking = {
+  prefixes: ['nextsport://', 'https://nextsport-sensforge.vercel.app'],
+  config: {
+    screens: {
+      MainTabs: 'home',
+      InviteAccept: 'invite/:code',
+    },
+  },
+};
+
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
+  const isCoach = useSharedIsCoach();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -66,6 +87,8 @@ function MainTabs() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Drills') {
             iconName = focused ? 'barbell' : 'barbell-outline';
+          } else if (route.name === 'Athletes') {
+            iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -75,6 +98,13 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Drills" component={DrillsScreen} />
+      {isCoach && (
+        <Tab.Screen
+          name="Athletes"
+          component={AthletesScreen}
+          options={{ tabBarLabel: 'Students' }}
+        />
+      )}
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -88,10 +118,17 @@ function AuthNavigator() {
   );
 }
 
+function MainTabsKeyed() {
+  const isCoach = useSharedIsCoach();
+  // Force React-level remount when isCoach changes — this resets
+  // the entire Tab.Navigator tree, avoiding React Navigation caching issues
+  return <MainTabs key={isCoach ? 'coach' : 'player'} />;
+}
+
 function AppStack() {
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
-      <RootStack.Screen name="MainTabs" component={MainTabs} />
+      <RootStack.Screen name="MainTabs" component={MainTabsKeyed} />
       <RootStack.Screen
         name="Record"
         component={RecordScreen}
@@ -105,6 +142,23 @@ function AppStack() {
         name="Paywall"
         component={PaywallScreen}
         options={{ presentation: 'modal' }}
+      />
+      <RootStack.Screen
+        name="Assignments"
+        component={AssignmentsScreen}
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <RootStack.Screen
+        name="InviteAccept"
+        component={InviteAcceptScreen}
+        options={{ presentation: 'modal' }}
+      />
+      <RootStack.Screen
+        name="AthleteDetail"
+        component={AthleteDetailScreen}
       />
     </RootStack.Navigator>
   );
@@ -136,7 +190,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       {session ? <AppStack /> : <AuthNavigator />}
     </NavigationContainer>
   );

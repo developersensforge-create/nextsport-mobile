@@ -142,7 +142,7 @@ export async function verifyApplePurchase(
   transactionId: string,
   authHeaders: Record<string, string>
 ): Promise<{ success: boolean; plan: string; expires_date: string | null }> {
-  const BASE_URL = 'https://nextsport-sensforge.vercel.app';
+  const BASE_URL = 'https://nextsport-six.vercel.app';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
   // Detect StoreKit 2 JWS (contains dots like a JWT) vs legacy base64 receipt
@@ -184,7 +184,7 @@ export async function verifyGooglePurchase(
   productId: string,
   authHeaders: Record<string, string>
 ): Promise<{ success: boolean; plan: string; expires_date: string | null }> {
-  const BASE_URL = 'https://nextsport-sensforge.vercel.app';
+  const BASE_URL = 'https://nextsport-six.vercel.app';
   const res = await fetch(`${BASE_URL}/api/google/verify-purchase`, {
     method: 'POST',
     headers: { ...authHeaders, 'Content-Type': 'application/json' },

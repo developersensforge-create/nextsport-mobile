@@ -16,8 +16,9 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
-import { getAnalyses, Analysis } from '../lib/api';
+import { getAnalyses, getAssignments, Analysis, Assignment } from '../lib/api';
 import AnalysisCard from '../components/AnalysisCard';
+import AiCoachCard from '../components/AiCoachCard';
 import TokenBadge from '../components/TokenBadge';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
@@ -35,6 +36,8 @@ export default function HomeScreen() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [analysesLoading, setAnalysesLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
 
   async function loadAnalyses() {
     try {
@@ -61,7 +64,22 @@ export default function HomeScreen() {
           if (!cancelled) setAnalysesLoading(false);
         }
       }
+      async function loadAssignmentsAsync() {
+        // Only load for premium users — checked after profile loads
+        // We always attempt the fetch; the backend returns [] for free users anyway
+        if (cancelled) return;
+        setAssignmentsLoading(true);
+        try {
+          const data = await getAssignments('pending');
+          if (!cancelled) setAssignments(data);
+        } catch {
+          // silently fail — AI Coach card handles empty state gracefully
+        } finally {
+          if (!cancelled) setAssignmentsLoading(false);
+        }
+      }
       loadAsync();
+      loadAssignmentsAsync();
       refetchProfile();
       return () => { cancelled = true; };
     }, [refetchProfile])
@@ -69,8 +87,17 @@ export default function HomeScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([loadAnalyses(), refetchProfile()]);
-    setRefreshing(false);
+    try {
+      const [data, assignData] = await Promise.all([
+        getAnalyses().catch(() => []),
+        getAssignments('pending').catch(() => []),
+      ]);
+      setAnalyses((data as Analysis[]).filter((a) => a.status === 'completed').slice(0, 5));
+      setAssignments(assignData as Assignment[]);
+    } finally {
+      await refetchProfile();
+      setRefreshing(false);
+    }
   }
 
   function handleRecord() {
@@ -177,6 +204,16 @@ export default function HomeScreen() {
               <Text style={styles.nudgeLink}>Upgrade to Premium</Text> for unlimited analyses.
             </Text>
           </TouchableOpacity>
+        )}
+
+        {/* AI Coach Card — Premium users or users with a coach */}
+        {(profile?.my_coach_id != null || profile?.subscription_status === 'premium') && (
+          <AiCoachCard
+            assignments={assignments}
+            loading={assignmentsLoading}
+            onViewAll={() => navigation.navigate('Assignments')}
+            coachName={profile?.my_coach_name}
+          />
         )}
 
         {/* Recent Analyses */}

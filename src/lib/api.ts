@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase';
 
-const BASE_URL = 'https://nextsport-sensforge.vercel.app';
+const BASE_URL = 'https://nextsport-six.vercel.app';
 
 async function getAuthHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -22,6 +22,12 @@ export interface Profile {
   subscription_status: 'free' | 'premium';
   token_reset_date: string | null;
   referral_code: string | null;
+  roles: string[];
+  is_coach: boolean;
+  // Coach relationship (player side)
+  my_coach_id: string | null;
+  my_coach_name: string | null;
+  my_coach_relationship_id: string | null;
 }
 
 export interface Analysis {
@@ -42,6 +48,12 @@ export interface Analysis {
 export async function getProfile(): Promise<Profile> {
   const headers = await getAuthHeaders();
   const response = await axios.get(`${BASE_URL}/api/profile`, { headers });
+  return response.data;
+}
+
+export async function updateProfile(full_name: string): Promise<{ full_name: string }> {
+  const headers = await getAuthHeaders();
+  const response = await axios.patch(`${BASE_URL}/api/profile`, { full_name }, { headers });
   return response.data;
 }
 
@@ -148,3 +160,193 @@ export async function pollAnalysis(
   }
   throw new Error('Analysis timed out');
 }
+
+// ─── AI Coach ────────────────────────────────────────────────────────────────
+
+export interface Assignment {
+  id: string;
+  drill_id: string | null;
+  drill_name: string;
+  title: string;
+  description: string | null;
+  reps: number | null;
+  sets: number | null;
+  due_date: string | null;
+  status: 'pending' | 'completed' | 'skipped';
+  ai_summary: string | null;
+  source: 'ai' | 'human';
+  created_at: string;
+  analysis_id: string | null;
+  coach_name?: string | null;
+}
+
+/**
+ * Silently trigger AI Coach to generate assignments after an analysis completes.
+ * Never throws — failures are logged as warnings only so the caller is never blocked.
+ */
+export async function triggerAiCoachGenerate(analysisId: string): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    await axios.post(
+      `${BASE_URL}/api/ai-coach/generate`,
+      { analysis_id: analysisId },
+      { headers, timeout: 30000 },
+    );
+  } catch (e) {
+    // Intentionally silent — AI Coach generation is a background enhancement,
+    // never block the user flow on its failure.
+    console.warn('[AI Coach] generate failed (silent):', e);
+  }
+}
+
+/**
+ * Fetch current user's assignments.
+ * @param status  'pending' | 'completed' | 'skipped' | 'all'  (default: 'pending')
+ * @param playerId  Optional player ID for coaches to view a specific athlete's assignments
+ */
+export async function getAssignments(
+  status: 'pending' | 'completed' | 'skipped' | 'all' = 'pending',
+  playerId?: string,
+): Promise<Assignment[]> {
+  const headers = await getAuthHeaders();
+  let url = `${BASE_URL}/api/ai-coach/assignments?status=${status}&limit=20`;
+  if (playerId) {
+    url += `&player_id=${playerId}`;
+  }
+  const response = await axios.get(url, { headers });
+  return response.data.assignments ?? [];
+}
+
+/**
+ * Mark an assignment as completed or skipped.
+ */
+export async function updateAssignmentStatus(
+  id: string,
+  status: 'completed' | 'skipped' | 'pending',
+): Promise<void> {
+  const headers = await getAuthHeaders();
+  await axios.patch(
+    `${BASE_URL}/api/ai-coach/assignments/${id}`,
+    { status },
+    { headers },
+  );
+}
+
+// ─── Coach API ────────────────────────────────────────────────────────────────
+
+export interface Athlete {
+  relationship_id: string;
+  player_id: string;
+  player_name: string;
+  age_group: string | null;
+  sport: string | null;
+  level: string | null;
+  latest_analysis: string | null;
+  pending_assignments_count: number;
+}
+
+export interface PendingInvite {
+  id: string;
+  invite_code: string;
+  invite_expires_at: string;
+  share_url: string;
+}
+
+export interface CoachAssignmentData {
+  player_id: string;
+  title: string;
+  description?: string;
+  drill_name?: string;
+  reps?: number;
+  sets?: number;
+  due_date?: string;
+  coach_note?: string;
+}
+
+/**
+ * Enable or disable coach mode for the current user.
+ */
+export async function enableCoachMode(enabled: boolean): Promise<void> {
+  const headers = await getAuthHeaders();
+  await axios.patch(
+    `${BASE_URL}/api/profile/coach-mode`,
+    { enabled },
+    { headers },
+  );
+}
+
+/**
+ * Create a new invite code for the coach to share with an athlete.
+ */
+export async function createInvite(): Promise<PendingInvite> {
+  const headers = await getAuthHeaders();
+  const response = await axios.post(`${BASE_URL}/api/coach/invite`, {}, { headers });
+  return response.data;
+}
+
+/**
+ * Accept a coach invite by code (athlete side).
+ */
+export async function acceptInvite(code: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  await axios.post(
+    `${BASE_URL}/api/coach/invite/accept`,
+    { invite_code: code },
+    { headers },
+  );
+}
+
+/**
+ * Preview an invite (get coach info before accepting).
+ */
+export async function getInvitePreview(code: string): Promise<{ coach_name: string; coach_id: string }> {
+  const headers = await getAuthHeaders();
+  const response = await axios.get(
+    `${BASE_URL}/api/coach/invite/preview?code=${encodeURIComponent(code)}`,
+    { headers },
+  );
+  return response.data;
+}
+
+/**
+ * Get all athletes linked to the current coach.
+ */
+export async function getAthletes(): Promise<{ athletes: Athlete[]; pending_invites: PendingInvite[] }> {
+  const headers = await getAuthHeaders();
+  const response = await axios.get(`${BASE_URL}/api/coach/athletes`, { headers });
+  return response.data;
+}
+
+/**
+ * Get all analyses for a specific athlete.
+ */
+export async function getAthleteAnalyses(playerId: string): Promise<Analysis[]> {
+  const headers = await getAuthHeaders();
+  const response = await axios.get(
+    `${BASE_URL}/api/coach/athletes/${playerId}/analyses`,
+    { headers },
+  );
+  return response.data.analyses ?? [];
+}
+
+/**
+ * Create an assignment for an athlete (coach side).
+ */
+export async function createCoachAssignment(data: CoachAssignmentData): Promise<Assignment> {
+  const headers = await getAuthHeaders();
+  const response = await axios.post(
+    `${BASE_URL}/api/coach/assignments`,
+    data,
+    { headers },
+  );
+  return response.data;
+}
+
+/**
+ * Remove a coach-athlete relationship.
+ */
+export async function removeRelationship(id: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  await axios.delete(`${BASE_URL}/api/coach/relationships/${id}`, { headers });
+}
+

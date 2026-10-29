@@ -3,6 +3,8 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { Profile, getProfile } from '../lib/api';
+import { setSharedIsCoach } from '../lib/coachState';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -10,6 +12,7 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  profile: Profile | null;
 }
 
 export function useAuth() {
@@ -17,29 +20,50 @@ export function useAuth() {
     session: null,
     user: null,
     loading: true,
+    profile: null,
   });
 
   useEffect(() => {
     supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        setState({
-          session,
-          user: session?.user ?? null,
-          loading: false,
-        });
-      })
-      .catch((err) => {
-        console.error('[useAuth] getSession failed:', err);
-        setState({ session: null, user: null, loading: false });
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+      .then(async ({ data: { session } }) => {
+        let profile: Profile | null = null;
+        if (session) {
+          try {
+profile = await getProfile();
+          setSharedIsCoach(profile?.is_coach ?? false);
+        } catch {
+          // profile fetch failure is non-fatal
+        }
+      }
       setState({
         session,
         user: session?.user ?? null,
         loading: false,
+        profile,
+      });
+    })
+    .catch((err) => {
+      console.error('[useAuth] getSession failed:', err);
+      setState({ session: null, user: null, loading: false, profile: null });
+    });
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    let profile: Profile | null = null;
+    if (session) {
+      try {
+        profile = await getProfile();
+        setSharedIsCoach(profile?.is_coach ?? false);
+        } catch {
+          // profile fetch failure is non-fatal
+        }
+      }
+      setState({
+        session,
+        user: session?.user ?? null,
+        loading: false,
+        profile,
       });
     });
 
@@ -56,7 +80,7 @@ export function useAuth() {
 
   const signUpWithEmail = useCallback(async (email: string, password: string, referralCode?: string) => {
     // Use our backend API to create user with auto email confirmation (no verification email needed)
-    const response = await fetch('https://nextsport-sensforge.vercel.app/api/auth/signup', {
+    const response = await fetch('https://nextsport-six.vercel.app/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, ...(referralCode ? { referralCode } : {}) }),
@@ -93,15 +117,31 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
+    // scope: 'local' — only clear local session, skip server revoke call
+    // Prevents errors when token is already expired or invalid
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const profile = await getProfile();
+      setState((prev) => ({ ...prev, profile }));
+      setSharedIsCoach(profile?.is_coach ?? false);
+    } catch {
+      // profile fetch failure is non-fatal
+    }
+  }, []);
+
+  const isCoach = state.profile?.is_coach ?? false;
+
   return {
     ...state,
+    isCoach,
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
     signOut,
+    refreshProfile,
   };
 }

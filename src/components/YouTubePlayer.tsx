@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 function getWatchOnYouTubeText(): string {
   try {
     const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
-    return locale.startsWith('zh') ? '在 YouTube 观看' : 'Watch on YouTube';
+    return 'Watch on YouTube'; // always English
   } catch {
     return 'Watch on YouTube';
   }
@@ -129,7 +129,7 @@ export default function YouTubePlayer({ videoId, startTime = 0, originalUrl, for
             activeOpacity={0.85}
           >
             <Ionicons name="logo-youtube" size={22} color="#fff" />
-            <Text style={styles.openButtonText}>在 YouTube 观看</Text>
+            <Text style={styles.openButtonText}>Watch on YouTube</Text>
           </TouchableOpacity>
         </View>
       </View>

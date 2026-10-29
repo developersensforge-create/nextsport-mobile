@@ -10,6 +10,9 @@ import {
   RefreshControl,
   Platform,
   Linking,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,8 +23,9 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useAuth } from '../hooks/useAuth';
 import { useProfile } from '../hooks/useProfile';
-import { getReferral } from '../lib/api';
+import { getReferral, enableCoachMode, acceptInvite, getProfile, updateProfile, removeRelationship } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { setSharedIsCoach } from '../lib/coachState';
 import { COLORS } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/AppNavigator';
 import { mp } from '../lib/mixpanel';
@@ -38,10 +42,23 @@ interface ReferralData {
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNavProp>();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshProfile } = useAuth();
   const { profile, loading, refetch } = useProfile();
   const [referral, setReferral] = useState<ReferralData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Coach mode state
+  const [coachModeLoading, setCoachModeLoading] = useState(false);
+
+  // Bind coach modal state
+  const [bindModalVisible, setBindModalVisible] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [bindLoading, setBindLoading] = useState(false);
+
+  // Edit name modal state
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   async function loadReferral() {
     try {
@@ -176,6 +193,90 @@ export default function ProfileScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  async function handleToggleCoachMode() {
+    if (!profile) return;
+    const newEnabled = !profile.is_coach;
+    setCoachModeLoading(true);
+    try {
+      await enableCoachMode(newEnabled);
+      await refreshProfile();
+      await refetch();
+      setSharedIsCoach(newEnabled);
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.error ?? err?.message ?? 'Please try again');
+    } finally {
+      setCoachModeLoading(false);
+    }
+  }
+
+  async function handleBindCoach() {
+    const code = inviteCode.trim().toUpperCase();
+    if (!code || code.length < 4) {
+      Alert.alert('Please enter invite code');
+      return;
+    }
+    setBindLoading(true);
+    try {
+      await acceptInvite(code);
+      Alert.alert('Bound!', 'You are now connected with your coach.');
+      setBindModalVisible(false);
+      setInviteCode('');
+      await refetch();
+    } catch (err: any) {
+      Alert.alert('Bind Failed', err?.response?.data?.error ?? err?.message ?? 'Invalid or expired invite code');
+    } finally {
+      setBindLoading(false);
+    }
+  }
+
+  function openEditName() {
+    setEditName(profile?.full_name ?? '');
+    setEditNameVisible(true);
+  }
+
+  async function handleSaveName() {
+    const name = editName.trim();
+    if (!name) {
+      Alert.alert('Name required', 'Please enter a display name.');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await updateProfile(name);
+      setEditNameVisible(false);
+      await refetch();
+    } catch (err: any) {
+      Alert.alert('Save Failed', err?.response?.data?.error ?? err?.message ?? 'Please try again');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleUnlinkCoach() {
+    const relId = profile?.my_coach_relationship_id;
+    if (!relId) return;
+    Alert.alert(
+      'Unlink Coach',
+      'Are you sure you want to remove this coach from your account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeRelationship(relId);
+              Alert.alert('Unlinked', 'Coach has been removed from your account.');
+              await refetch();
+            } catch (err: any) {
+              Alert.alert('Error', err?.response?.data?.error ?? err?.message ?? 'Please try again');
+            }
+          },
+        },
+      ]
+    );
+  }
+
   const isPremium = profile?.subscription_status === 'premium';
 
   return (
@@ -200,7 +301,11 @@ export default function ProfileScreen() {
               {((profile?.full_name || user?.email || 'A')[0] ?? 'A').toUpperCase()}
             </Text>
           </View>
-          <Text style={styles.name}>{profile?.full_name ?? 'Athlete'}</Text>
+          <Text style={styles.name}>{profile?.full_name ?? 'Set your name'}</Text>
+          <TouchableOpacity style={styles.editNameBtn} onPress={openEditName} activeOpacity={0.7}>
+            <Ionicons name="pencil-outline" size={14} color={COLORS.muted} />
+            <Text style={styles.editNameText}>Edit</Text>
+          </TouchableOpacity>
           <Text style={styles.email}>{user?.email ?? ''}</Text>
 
           {/* Plan badge */}
@@ -287,6 +392,165 @@ export default function ProfileScreen() {
             </Text>
           </View>
         )}
+
+        {/* Coach section: bind coach (visible to all users) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.coachSectionHeader}>
+            <Ionicons name="people-outline" size={18} color={COLORS.accent} />
+            <Text style={styles.coachSectionTitle}>Coach</Text>
+          </View>
+          <View style={styles.rowDivider} />
+
+          {/* Toggle coach mode — premium only */}
+          {isPremium && (
+            <>
+              <TouchableOpacity
+                style={settingsRowStyles.row}
+                onPress={handleToggleCoachMode}
+                activeOpacity={0.7}
+                disabled={coachModeLoading}
+              >
+                <Ionicons
+                  name={profile?.is_coach ? 'checkmark-circle' : 'person-add-outline'}
+                  size={20}
+                  color={profile?.is_coach ? COLORS.accent : COLORS.muted}
+                />
+                <Text style={[settingsRowStyles.label, profile?.is_coach && { color: COLORS.accent }]}>
+                  {profile?.is_coach ? 'Coach Mode Enabled ✓' : 'Enable Coach Mode'}
+                </Text>
+                {coachModeLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
+                )}
+              </TouchableOpacity>
+              <View style={styles.rowDivider} />
+            </>
+          )}
+
+          {/* Bind coach — visible to all */}
+          {profile?.my_coach_id ? (
+            // Already bound: show coach name + unlink button
+            <View style={settingsRowStyles.row}>
+              <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[settingsRowStyles.label, { marginLeft: 0, color: COLORS.accent }]}>
+                  My Coach ✓
+                </Text>
+                <Text style={{ color: COLORS.muted, fontSize: 13, marginTop: 2 }}>
+                  {profile.my_coach_name ?? 'Bound'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleUnlinkCoach} style={{ padding: 4 }}>
+                <Ionicons name="close-circle-outline" size={20} color={COLORS.danger} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            // Not bound: show bind entry
+            <TouchableOpacity
+              style={settingsRowStyles.row}
+              onPress={() => setBindModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="link-outline" size={20} color={COLORS.muted} />
+              <Text style={settingsRowStyles.label}>Bind Coach</Text>
+              <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Bind Coach Modal */}
+        <Modal
+          visible={bindModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setBindModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Bind Coach</Text>
+              <Text style={styles.modalSubtitle}>Enter the 6-digit invite code from your coach</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                value={inviteCode}
+                onChangeText={(t) => setInviteCode(t.toUpperCase())}
+                placeholder="Invite code"
+                placeholderTextColor={COLORS.muted}
+                maxLength={8}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalBtnCancel}
+                  onPress={() => { setBindModalVisible(false); setInviteCode(''); }}
+                  disabled={bindLoading}
+                >
+                  <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtnConfirm, bindLoading && { opacity: 0.6 }]}
+                  onPress={handleBindCoach}
+                  disabled={bindLoading}
+                >
+                  {bindLoading ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.modalBtnConfirmText}>Confirm</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Edit Name Modal */}
+        <Modal
+          visible={editNameVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setEditNameVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Edit Name</Text>
+              <Text style={styles.modalSubtitle}>Set the name shown on your profile</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Your name"
+                placeholderTextColor={COLORS.muted}
+                maxLength={50}
+                autoCorrect={false}
+              />
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalBtnCancel}
+                  onPress={() => setEditNameVisible(false)}
+                  disabled={editSaving}
+                >
+                  <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtnConfirm, editSaving && { opacity: 0.6 }]}
+                  onPress={handleSaveName}
+                  disabled={editSaving}
+                >
+                  {editSaving ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text style={styles.modalBtnConfirmText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Settings sections */}
         <View style={styles.sectionCard}>
@@ -393,6 +657,17 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 4,
+  },
+  editNameBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  editNameText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    fontWeight: '600',
   },
   email: {
     color: COLORS.muted,
@@ -583,5 +858,82 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 6,
     textDecorationLine: 'underline',
+  },
+  coachSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  coachSectionTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalBox: {
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  modalInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalBtnCancel: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  modalBtnCancelText: {
+    color: COLORS.muted,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalBtnConfirm: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+  },
+  modalBtnConfirmText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '800',
   },
 });

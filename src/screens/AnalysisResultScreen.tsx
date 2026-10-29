@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { getAnalysis, pollAnalysis, Analysis } from '../lib/api';
+import { getAnalysis, pollAnalysis, triggerAiCoachGenerate, Analysis } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 import { COLORS } from '../theme';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { mp } from '../lib/mixpanel';
@@ -269,6 +270,7 @@ function DrillsSection({ drills }: { drills: string[] }) {
 export default function AnalysisResultScreen() {
   const navigation = useNavigation<ResultNavProp>();
   const route = useRoute<ResultRouteProp>();
+  const { session } = useAuth();
 
   const params = route.params ?? {};
   const analysisId = (params as any).analysisId as string | undefined;
@@ -298,6 +300,11 @@ export default function AnalysisResultScreen() {
         if (!cancelled) {
           setAnalysis(result);
           mp.analysisViewed(analysisId);
+          // Silently trigger AI Coach to generate assignments for this analysis.
+          // Only fires when analysis is completed; free users are filtered server-side.
+          if (result.status === 'completed') {
+            triggerAiCoachGenerate(analysisId);
+          }
         }
       } catch (err: any) {
         if (!cancelled) {

@@ -18,7 +18,7 @@
         "backgroundColor": "#0a0f1e"
       },
       "package": "com.nextsport.app",
-      "versionCode": 43,
+      "versionCode": 60,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -27,12 +27,32 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "nextsport-sensforge.vercel.app",
+              "pathPrefix": "/invite"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nextsport.app",
-      "buildNumber": "1",
+      "buildNumber": "3",
+      "associatedDomains": [
+        "applinks:nextsport-sensforge.vercel.app"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "NextSport uses your camera to record swing videos for AI coaching analysis. Videos are uploaded securely and used only for your personal analysis.",
         "NSMicrophoneUsageDescription": "NextSport uses your microphone to capture audio when recording swing videos. Audio is included in your video upload and used only for analysis.",

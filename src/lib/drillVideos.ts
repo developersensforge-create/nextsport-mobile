@@ -9,7 +9,7 @@
  * Map so DrillsScreen still renders normally (just without video thumbnails/players).
  */
 
-const API_URL = 'https://nextsport-sensforge.vercel.app/api/drills/videos';
+const API_URL = 'https://nextsport-six.vercel.app/api/drills/videos';
 
 export interface DrillVideo {
   drill_id: string;
