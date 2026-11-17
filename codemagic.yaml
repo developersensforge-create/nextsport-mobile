@@ -46,9 +46,6 @@ workflows:
         script: |
           cd ios && pod install
 
-      - name: Configure Xcode signing
-        script: python3 scripts/patch_signing.py
-
       - name: Build iOS Archive
         script: |
           xcodebuild \
@@ -56,6 +53,11 @@ workflows:
             -scheme NextSport \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_C2345LX527.p8 \
+            -authenticationKeyID C2345LX527 \
+            -authenticationKeyIssuerID 5fd238fa-843c-4575-a581-bc0cb45b1798 \
+            DEVELOPMENT_TEAM=58BKXDS287 \
             clean archive
 
       - name: Export IPA
@@ -73,19 +75,18 @@ workflows:
             <key>uploadSymbols</key>
             <true/>
             <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.nextsport.app</key>
-              <string>NextSport AppStore Distribution v2</string>
-            </dict>
+            <string>automatic</string>
           </dict>
           </plist>
           EOF
           xcodebuild -exportArchive \
             -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
             -exportOptionsPlist /tmp/export_options.plist \
-            -exportPath $CM_BUILD_DIR/ipa
+            -exportPath $CM_BUILD_DIR/ipa \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_C2345LX527.p8 \
+            -authenticationKeyID C2345LX527 \
+            -authenticationKeyIssuerID 5fd238fa-843c-4575-a581-bc0cb45b1798
 
       - name: Upload to TestFlight
         script: |
