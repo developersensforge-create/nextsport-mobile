@@ -9,22 +9,11 @@ workflows:
         APP_STORE_CONNECT_KEY_IDENTIFIER: "C2345LX527"
         APP_STORE_CONNECT_ISSUER_ID: "5fd238fa-843c-4575-a581-bc0cb45b1798"
         BUNDLE_ID: "com.nextsport.app"
-      xcode: "26.3"
+      xcode: "16.3"
       node: 20
     scripts:
       - name: Install dependencies
-        script: |
-          npm install --legacy-peer-deps
-          # Fix Xcode 26.3: DomWebViewRegistry.swift missing Dispatch import
-          DOM_WEBVIEW_FILE="node_modules/@expo/dom-webview/ios/DomWebViewRegistry.swift"
-          if [ -f "$DOM_WEBVIEW_FILE" ]; then
-            sed -i '' '1s/^/import Dispatch\n/' "$DOM_WEBVIEW_FILE"
-          fi
-          # Fix Xcode 26.3: MixpanelReactNative.swift missing React import
-          MIXPANEL_FILE="node_modules/mixpanel-react-native/ios/MixpanelReactNative.swift"
-          if [ -f "$MIXPANEL_FILE" ]; then
-            sed -i '' '2s/^/import React\n/' "$MIXPANEL_FILE"
-          fi
+        script: npm install --legacy-peer-deps
 
       - name: Set up ASC API Key
         script: |
@@ -53,10 +42,6 @@ workflows:
             -authenticationKeyIssuerID 5fd238fa-843c-4575-a581-bc0cb45b1798 \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM=58BKXDS287 \
-            OTHER_SWIFT_FLAGS="-strict-concurrency=minimal" \
-            SWIFT_STRICT_CONCURRENCY=minimal \
-            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
-            CLANG_ENABLE_EXPLICIT_MODULES=NO \
             clean archive
 
       - name: Export IPA
