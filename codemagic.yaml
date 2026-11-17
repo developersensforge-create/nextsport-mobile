@@ -59,7 +59,7 @@ workflows:
             -authenticationKeyIssuerID 5fd238fa-843c-4575-a581-bc0cb45b1798 \
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE=4dd97dbd-ac51-4327-a32b-8ac23e5e286c \
-            CODE_SIGN_IDENTITY="Apple Development" \
+            CODE_SIGN_IDENTITY='Apple Development' \
             DEVELOPMENT_TEAM=58BKXDS287 \
             OTHER_SWIFT_FLAGS="-strict-concurrency=minimal" \
             SWIFT_STRICT_CONCURRENCY=minimal \
