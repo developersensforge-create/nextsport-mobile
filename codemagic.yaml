@@ -23,18 +23,13 @@ workflows:
             -not -path "*/expo-audio/*" \
             -not -path "*/expo-modules-core/*" | while read f; do
             if ! grep -q "import Foundation" "$f"; then
-              sed -i '' '1i\
-import Foundation\
-import UIKit\
-' "$f"
+              printf 'import Foundation\nimport UIKit\n' | cat - "$f" > /tmp/swift_fix.swift && mv /tmp/swift_fix.swift "$f"
             fi
           done
           # Mixpanel needs React import
           MP="node_modules/mixpanel-react-native/ios/MixpanelReactNative.swift"
           if [ -f "$MP" ] && ! grep -q "import React" "$MP"; then
-            sed -i '' '3i\
-import React\
-' "$MP"
+            printf 'import React\n' | cat - "$MP" > /tmp/swift_mp.swift && mv /tmp/swift_mp.swift "$MP"
           fi
 
       - name: Set up ASC API Key
