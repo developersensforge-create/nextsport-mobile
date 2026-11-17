@@ -94,6 +94,7 @@ export default function RecordScreen() {
     if (!cameraRef.current) return;
     setIsRecording(true);
     mp.recordingStarted();
+    const recStart = Date.now();
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       // BUG-09: 录制被系统中断时 video 可能为 null（电话来电、权限撤销等）
@@ -102,10 +103,12 @@ export default function RecordScreen() {
         return;
       }
       setVideoUri(video.uri);
-      // CameraView doesn't reliably return duration — default to 15s for recording
-      setVideoDuration(15);
-      mp.recordingStopped(15);
-      mp.videoSelected('camera', 15);
+      // 用实际录制耗时代替硬编码 15——CameraView 不返回时长元数据
+      const elapsedSec = Math.round((Date.now() - recStart) / 1000);
+      const dur = elapsedSec > 0 ? elapsedSec : 15;
+      setVideoDuration(dur);
+      mp.recordingStopped(dur);
+      mp.videoSelected('camera', dur);
     } catch (err: any) {
       Alert.alert('Recording Error', err.message ?? 'Failed to record video.');
     } finally {
@@ -438,7 +441,11 @@ export default function RecordScreen() {
         {!isRecording && (
           <View style={styles.hintContainer}>
             <Text style={styles.hintText}>Tap the button to start recording</Text>
-            <Text style={styles.hintSubText}>Max 60 seconds · 10–20 tokens</Text>
+            <Text style={styles.hintSubText}>
+              {isAssignmentMode
+                ? 'Max 60 seconds · no tokens used'
+                : 'Max 60 seconds · 10–20 tokens'}
+            </Text>
           </View>
         )}
       </CameraView>

@@ -20,6 +20,11 @@ import AssignmentsScreen from '../screens/AssignmentsScreen';
 import InviteAcceptScreen from '../screens/InviteAcceptScreen';
 import AthletesScreen from '../screens/AthletesScreen';
 import AthleteDetailScreen from '../screens/AthleteDetailScreen';
+import CoachFeedbackScreen from '../screens/CoachFeedbackScreen';
+import FeedbackDetailScreen from '../screens/FeedbackDetailScreen';
+import FeedbackListScreen from '../screens/FeedbackListScreen';
+import AthleteAssignmentsScreen from '../screens/AthleteAssignmentsScreen';
+import AthleteActivityScreen from '../screens/AthleteActivityScreen';
 import { ensureIapConnection } from '../lib/iap';
 import { COLORS } from '../theme';
 
@@ -32,12 +37,28 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  Record: { mode?: 'record' | 'upload' } | undefined;
+  Record:
+    | { mode?: 'record' | 'upload'; assignmentId?: string; assignmentTitle?: string }
+    | undefined;
   AnalysisResult: { analysisId: string; poll?: boolean };
   Paywall: undefined;
   Assignments: undefined;
   InviteAccept: { code: string };
   AthleteDetail: { playerId: string; playerName: string };
+  CoachFeedback: {
+    playerId: string;
+    playerName: string;
+    source: 'analysis' | 'submission';
+    submissionId?: string;
+    analysisId?: string;
+    videoUrl?: string | null;
+    durationSec?: number | null;
+    title?: string;
+  };
+  FeedbackDetail: { feedbackId: string };
+  FeedbackList: { assignmentId?: string; assignmentTitle?: string; coachView?: boolean } | undefined;
+  AthleteAssignments: { playerId: string; playerName: string };
+  AthleteActivity: { playerId: string; playerName: string };
 };
 
 export type AuthStackParamList = {
@@ -159,6 +180,31 @@ function AppStack() {
       <RootStack.Screen
         name="AthleteDetail"
         component={AthleteDetailScreen}
+      />
+      <RootStack.Screen
+        name="CoachFeedback"
+        component={CoachFeedbackScreen}
+        options={{ presentation: 'card' }}
+      />
+      <RootStack.Screen
+        name="FeedbackDetail"
+        component={FeedbackDetailScreen}
+        options={{ presentation: 'card' }}
+      />
+      <RootStack.Screen
+        name="FeedbackList"
+        component={FeedbackListScreen}
+        options={{ presentation: 'card' }}
+      />
+      <RootStack.Screen
+        name="AthleteAssignments"
+        component={AthleteAssignmentsScreen}
+        options={{ presentation: 'card' }}
+      />
+      <RootStack.Screen
+        name="AthleteActivity"
+        component={AthleteActivityScreen}
+        options={{ presentation: 'card' }}
       />
     </RootStack.Navigator>
   );

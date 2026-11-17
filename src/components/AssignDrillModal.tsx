@@ -95,7 +95,11 @@ export default function AssignDrillModal({ visible, playerId, playerName, onClos
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-        <View style={styles.sheet}>
+        {/* Prevent touch fallthrough from blank areas inside the sheet */}
+        <View
+          style={styles.sheet}
+          onStartShouldSetResponder={() => true}
+        >
           {/* Header */}
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Assign Drill to {playerName}</Text>
