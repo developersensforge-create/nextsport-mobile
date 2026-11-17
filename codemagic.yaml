@@ -15,15 +15,9 @@ workflows:
       - name: Install dependencies
         script: |
           npm install --legacy-peer-deps
-          # Xcode 26.3 Swift 6 compat patches
-          for f in \
-            "node_modules/@expo/dom-webview/ios/DomWebViewRegistry.swift" \
-            "node_modules/expo-sharing/ios/ResolveUrlContentDetails.swift" \
-            "node_modules/expo-image-picker/ios/ImagePickerModule.swift" \
-            "node_modules/expo-image-picker/ios/StatusBarVisibilityController.swift" \
-            "node_modules/expo-image-picker/ios/UIImagePickerControllerExtentsion.swift" \
-            "node_modules/mixpanel-react-native/ios/MixpanelReactNative.swift"; do
-            if [ -f "$f" ]; then
+          # Xcode 26.3 Swift 6 compat: ensure Foundation/UIKit imports in ALL Swift files
+          find node_modules -name "*.swift" -not -path "*/react-native/React*" | while read f; do
+            if ! head -1 "$f" | grep -q "Foundation"; then
               sed -i '' '1s/^/import Foundation\nimport UIKit\n/' "$f"
             fi
           done
@@ -62,8 +56,6 @@ workflows:
             DEVELOPMENT_TEAM=58BKXDS287 \
             OTHER_SWIFT_FLAGS="-strict-concurrency=minimal" \
             SWIFT_STRICT_CONCURRENCY=minimal \
-            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
-            CLANG_ENABLE_EXPLICIT_MODULES=NO \
             clean archive
 
       - name: Export IPA
