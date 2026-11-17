@@ -13,24 +13,7 @@ workflows:
       node: 20
     scripts:
       - name: Install dependencies
-        script: |
-          npm install --legacy-peer-deps
-          # Xcode 26.3 Swift 6 compat: add Foundation/UIKit to Swift files that need it
-          # Skip: React Native internals, SPM packages, and files in ObjC-heavy modules
-          find node_modules -name "*.swift" \
-            -not -path "*/react-native/React*" \
-            -not -name "Package.swift" \
-            -not -path "*/expo-audio/*" \
-            -not -path "*/expo-modules-core/*" | while read f; do
-            if ! grep -q "import Foundation" "$f"; then
-              printf 'import Foundation\nimport UIKit\n' | cat - "$f" > /tmp/swift_fix.swift && mv /tmp/swift_fix.swift "$f"
-            fi
-          done
-          # Mixpanel needs React import
-          MP="node_modules/mixpanel-react-native/ios/MixpanelReactNative.swift"
-          if [ -f "$MP" ] && ! grep -q "import React" "$MP"; then
-            printf 'import React\n' | cat - "$MP" > /tmp/swift_mp.swift && mv /tmp/swift_mp.swift "$MP"
-          fi
+        script: npm install --legacy-peer-deps
 
       - name: Set up ASC API Key
         script: |
@@ -59,8 +42,6 @@ workflows:
             -authenticationKeyIssuerID 5fd238fa-843c-4575-a581-bc0cb45b1798 \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM=58BKXDS287 \
-            OTHER_SWIFT_FLAGS="-strict-concurrency=minimal" \
-            SWIFT_STRICT_CONCURRENCY=minimal \
             clean archive
 
       - name: Export IPA
