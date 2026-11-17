@@ -20,9 +20,8 @@ import AssignmentsScreen from '../screens/AssignmentsScreen';
 import InviteAcceptScreen from '../screens/InviteAcceptScreen';
 import AthletesScreen from '../screens/AthletesScreen';
 import AthleteDetailScreen from '../screens/AthleteDetailScreen';
-import CoachFeedbackScreen from '../screens/CoachFeedbackScreen';
-import FeedbackDetailScreen from '../screens/FeedbackDetailScreen';
 import FeedbackListScreen from '../screens/FeedbackListScreen';
+import FeedbackDetailScreen from '../screens/FeedbackDetailScreen';
 import AthleteAssignmentsScreen from '../screens/AthleteAssignmentsScreen';
 import AthleteActivityScreen from '../screens/AthleteActivityScreen';
 import { ensureIapConnection } from '../lib/iap';
@@ -183,8 +182,9 @@ function AppStack() {
       />
       <RootStack.Screen
         name="CoachFeedback"
-        component={CoachFeedbackScreen}
+        component={FeedbackListScreen}
         options={{ presentation: 'card' }}
+        initialParams={{ coachView: true }}
       />
       <RootStack.Screen
         name="FeedbackDetail"
