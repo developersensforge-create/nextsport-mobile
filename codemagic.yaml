@@ -15,18 +15,26 @@ workflows:
       - name: Install dependencies
         script: |
           npm install --legacy-peer-deps
-          # Xcode 26.3 Swift 6 compat: ensure Foundation/UIKit imports in ALL Swift files
+          # Xcode 26.3 Swift 6 compat: add Foundation/UIKit to Swift files that need it
+          # Skip: React Native internals, SPM packages, and files in ObjC-heavy modules
           find node_modules -name "*.swift" \
             -not -path "*/react-native/React*" \
-            -not -name "Package.swift" | while read f; do
-            if ! head -1 "$f" | grep -q "Foundation"; then
-              sed -i '' '1s/^/import Foundation\nimport UIKit\n/' "$f"
+            -not -name "Package.swift" \
+            -not -path "*/expo-audio/*" \
+            -not -path "*/expo-modules-core/*" | while read f; do
+            if ! grep -q "import Foundation" "$f"; then
+              sed -i '' '1i\
+import Foundation\
+import UIKit\
+' "$f"
             fi
           done
-          # Mixpanel needs React import specifically
+          # Mixpanel needs React import
           MP="node_modules/mixpanel-react-native/ios/MixpanelReactNative.swift"
-          if [ -f "$MP" ]; then
-            sed -i '' '3s/^/import React\n/' "$MP"
+          if [ -f "$MP" ] && ! grep -q "import React" "$MP"; then
+            sed -i '' '3i\
+import React\
+' "$MP"
           fi
 
       - name: Set up ASC API Key
