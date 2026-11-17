@@ -16,7 +16,9 @@ workflows:
         script: |
           npm install --legacy-peer-deps
           # Xcode 26.3 Swift 6 compat: ensure Foundation/UIKit imports in ALL Swift files
-          find node_modules -name "*.swift" -not -path "*/react-native/React*" | while read f; do
+          find node_modules -name "*.swift" \
+            -not -path "*/react-native/React*" \
+            -not -name "Package.swift" | while read f; do
             if ! head -1 "$f" | grep -q "Foundation"; then
               sed -i '' '1s/^/import Foundation\nimport UIKit\n/' "$f"
             fi
