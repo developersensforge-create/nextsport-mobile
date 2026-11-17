@@ -13,7 +13,13 @@ workflows:
       node: 20
     scripts:
       - name: Install dependencies
-        script: npm install --legacy-peer-deps
+        script: |
+          npm install --legacy-peer-deps
+          # Fix Xcode 26.3: DomWebViewRegistry.swift missing Dispatch import
+          DOM_WEBVIEW_FILE="node_modules/@expo/dom-webview/ios/DomWebViewRegistry.swift"
+          if [ -f "$DOM_WEBVIEW_FILE" ]; then
+            sed -i '' '1s/^/import Dispatch\n/' "$DOM_WEBVIEW_FILE"
+          fi
 
       - name: Set up ASC API Key
         script: |
