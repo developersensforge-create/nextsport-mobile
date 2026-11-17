@@ -44,44 +44,16 @@ workflows:
             DEVELOPMENT_TEAM=58BKXDS287 \
             clean archive
 
-      - name: Export IPA
+      - name: Upload to TestFlight
         script: |
-          mkdir -p $CM_BUILD_DIR/ipa
-          cat > /tmp/export_options.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>58BKXDS287</string>
-            <key>uploadSymbols</key>
-            <true/>
-            <key>signingStyle</key>
-            <string>automatic</string>
-          </dict>
-          </plist>
-          EOF
-          xcodebuild -exportArchive \
+          xcodebuild -uploadArchive \
             -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
-            -exportOptionsPlist /tmp/export_options.plist \
-            -exportPath $CM_BUILD_DIR/ipa \
             -allowProvisioningUpdates \
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_C2345LX527.p8 \
             -authenticationKeyID C2345LX527 \
             -authenticationKeyIssuerID 5fd238fa-843c-4575-a581-bc0cb45b1798
 
-      - name: Upload to TestFlight
-        script: |
-          xcrun altool --upload-app \
-            -f "$CM_BUILD_DIR/ipa/nextsport.ipa" \
-            --apiKey "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
-            --type ios
-
     artifacts:
-      - $CM_BUILD_DIR/ipa/*.ipa
       - $CM_BUILD_DIR/nextsport.xcarchive
 
     publishing:
