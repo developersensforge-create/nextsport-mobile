@@ -52,6 +52,12 @@ workflows:
       - name: Configure Xcode signing
         script: python3 scripts/patch_signing.py
 
+      - name: Patch DomWebView imports (Xcode 26.3 compat)
+        script: |
+          for f in node_modules/@expo/dom-webview/ios/DomWebViewRegistry.swift node_modules/@expo/dom-webview/ios/DomWebView.swift; do
+            grep -q "import Dispatch" "$f" || sed -i '' '1s/^/import Dispatch\n/' "$f"
+          done
+
       - name: Build iOS Archive
         script: |
           xcodebuild \
@@ -59,8 +65,6 @@ workflows:
             -scheme NextSport \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/nextsport.xcarchive \
-            OTHER_SWIFT_FLAGS="-strict-concurrency=minimal" \
-            SWIFT_STRICT_CONCURRENCY=minimal \
             clean archive
 
       - name: Export IPA
